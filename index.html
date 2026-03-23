@@ -3515,8 +3515,9 @@ async function gSyncAll() {
   } catch(e) {
     console.error('Sync error:', e);
     setSyncStatus('⚠️ שגיאה בסנכרון', true);
+  } finally {
+    gSyncing = false;
   }
-  gSyncing = false;
 }
 
 // Smart merge sync — compares timestamps, always keeps newer version
@@ -3569,13 +3570,11 @@ async function gMergeSync() {
   const localJson = JSON.stringify(entries.map(e=>({...e, receiptFile:null})));
   const mergedJson = JSON.stringify(merged.map(e=>({...e, receiptFile:null})));
   const localChanged = localJson !== mergedJson;
-  if (localChanged) {
-    // preserve receiptFile from local
-    merged.forEach(e => { if (localMap[e.id]) e.receiptFile = localMap[e.id].receiptFile||null; });
-    entries = merged;
-    try{localStorage.setItem(SK,JSON.stringify(entries));}catch(ex){}
-    populateFilters(); renderAll();
-  }
+  // preserve receiptFile from local
+  merged.forEach(e => { if (localMap[e.id]) e.receiptFile = localMap[e.id].receiptFile||null; });
+  entries = merged;
+  try{localStorage.setItem(SK,JSON.stringify(entries));}catch(ex){}
+  if (localChanged) { populateFilters(); renderAll(); }
 
   // 6. only push to Sheets if we have newer local changes
   const hasLocalNewer = Object.keys(localMap).some(id => {
