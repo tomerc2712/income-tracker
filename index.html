@@ -752,6 +752,11 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <option value="טרם נערך">טרם נערך</option>
       </select>
       <select class="fsel" id="alin-f-month" onchange="alinRenderProducts()"><option value="">כל החודשים</option></select>
+      <select class="fsel" id="alin-f-pay" onchange="alinRenderProducts()">
+        <option value="">שולם / לא שולם</option>
+        <option value="שולם">שולם ✅</option>
+        <option value="לא שולם">טרם שולם ❌</option>
+      </select>
 
     </div>
     <div class="bulk-bar" id="alin-bulk-bar">
@@ -1781,11 +1786,22 @@ function isOverdue(e){
     if(!isNaN(d))return d<now;
   }
 
-  // format: "31 במאי 26" or "31 במאי 2026"
-  const heMonths={ינואר:1,פברואר:2,מרץ:3,אפריל:4,מאי:5,יוני:6,יולי:7,אוגוסט:8,ספטמבר:9,אוקטובר:10,נובמבר:11,דצמבר:12};
-  const m=exp.match(/(\d+)\s+ב?(\S+)\s+(\d+)/);
+  // Hebrew month map — full and short forms
+  const heMonths={
+    'ינואר':1,'פברואר':2,'מרץ':3,'אפריל':4,'מאי':5,'יוני':6,
+    'יולי':7,'אוגוסט':8,'ספטמבר':9,'אוקטובר':10,'נובמבר':11,'דצמבר':12,
+    'ינו':1,'פבר':2,'מרץ':3,'אפר':4,'מאי':5,'יונ':6,
+    'יול':7,'אוג':8,'ספט':9,'אוק':10,'נוב':11,'דצמ':12,
+    "ינו׳":1,"פבר׳":2,"אפר׳":4,"יונ׳":6,"יול׳":7,"אוג׳":8,"ספט׳":9,"אוק׳":10,"נוב׳":11,"דצמ׳":12
+  };
+
+  // format: "15 בפבר׳ 26" or "15 במרץ 2026" or "15 בינואר 26"
+  const m=exp.match(/(\d+)\s+ב?(\S+?)[׳']?\s+(\d+)/);
   if(m){
-    const day=parseInt(m[1]),mon=heMonths[m[2]],yr=parseInt(m[3]);
+    const day=parseInt(m[1]);
+    const monKey=m[2].replace(/[׳']/g,'');
+    const mon=heMonths[m[2]]||heMonths[monKey];
+    const yr=parseInt(m[3]);
     if(day&&mon&&yr){
       const fullYr=yr<100?2000+yr:yr;
       const d=new Date(fullYr,mon-1,day);
@@ -1793,8 +1809,9 @@ function isOverdue(e){
     }
   }
 
-  // format: month name only like "אפריל" — treat as first of that month
-  const monthOnly=heMonths[exp.trim()];
+  // month name only like "אפריל" or "פבר׳"
+  const cleanExp=exp.trim().replace(/[׳']/g,'');
+  const monthOnly=heMonths[exp.trim()]||heMonths[cleanExp];
   if(monthOnly){
     const yr=now.getFullYear();
     const d=new Date(yr,monthOnly-1,1);
@@ -2792,12 +2809,15 @@ function alinRenderProducts(){
   const fT=document.getElementById('alin-f-type')?.value||'';
   const fSt=document.getElementById('alin-f-status')?.value||'';
   const fM=document.getElementById('alin-f-month')?.value||'';
+  const fPay=document.getElementById('alin-f-pay')?.value||'';
   const filtered=alinProducts.filter(p=>{
     if(s&&!(p.show||'').includes(s)&&!(p.type||'').includes(s)&&!(p.notes||'').includes(s))return false;
     if(fS&&p.show!==fS)return false;
     if(fT&&p.type!==fT)return false;
     if(fSt&&p.status!==fSt)return false;
     if(fM&&alinGetMonth(p.date)!==fM)return false;
+    if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
+    if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
     return true;
   }).sort((a,b)=>b.date>=a.date?1:-1);
   const el=document.getElementById('alin-products-tbl');if(!el)return;
