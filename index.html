@@ -3568,7 +3568,8 @@ async function gMergeSync() {
   // 5. update local if changed
   const localJson = JSON.stringify(entries.map(e=>({...e, receiptFile:null})));
   const mergedJson = JSON.stringify(merged.map(e=>({...e, receiptFile:null})));
-  if (localJson !== mergedJson) {
+  const localChanged = localJson !== mergedJson;
+  if (localChanged) {
     // preserve receiptFile from local
     merged.forEach(e => { if (localMap[e.id]) e.receiptFile = localMap[e.id].receiptFile||null; });
     entries = merged;
@@ -3576,10 +3577,17 @@ async function gMergeSync() {
     populateFilters(); renderAll();
   }
 
-  // 6. push merged to Sheets
-  await gPushEntries();
-  await gPushMeta();
-  await gPushAlin();
+  // 6. only push to Sheets if we have newer local changes
+  const hasLocalNewer = Object.keys(localMap).some(id => {
+    const local = localMap[id];
+    const sheet = sheetsMap[id];
+    return !sheet || (local.lastModified||0) > (sheet.lastModified||0);
+  });
+  if (hasLocalNewer) {
+    await gPushEntries();
+    await gPushMeta();
+    await gPushAlin();
+  }
 }
 
 // on login — merge sync (safe, never blindly overwrites)
