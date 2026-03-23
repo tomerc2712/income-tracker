@@ -1711,7 +1711,7 @@ function renderTable(){
     <th class="no-sort">תשלום</th>
     <th class="no-sort">קבלה</th>
     <th class="no-sort">קובץ</th>
-    <th class="no-sort" style="color:var(--warn);font-size:10px">שליחת תזכורת<br>תשלום ללקוח</th>
+    <th class="no-sort" style="color:var(--warn);font-size:10px">תזכורת</th>
     <th class="no-sort"></th>
   </tr></thead>`;
   const now=new Date(); now.setHours(0,0,0,0);
@@ -1727,7 +1727,7 @@ function renderTable(){
     let reminderCol='<td></td>';
     if(e.pay_status==='טרם שולם' && isOverdue(e)){
       reminderCol=`<td style="white-space:nowrap;text-align:center">
-        <span title="שלח מייל" style="cursor:pointer;font-size:16px" onclick="sendReminderEmail(${e.id})">📧</span>
+        <span title="שלח מייל" style="cursor:pointer;font-size:16px" onclick="sendReminderEmail(${e.id})">🔔</span>
         <span title="העתק לוואטסאפ" style="cursor:pointer;font-size:16px;margin-right:4px" onclick="copyReminderWhatsapp(${e.id})">💬</span>
       </td>`;
     }
@@ -1761,13 +1761,35 @@ function isOverdue(e){
   if(e.pay_status!=='טרם שולם')return false;
   const exp=e.expected_payment;
   if(!exp)return false;
-  // expected_payment can be a date string like "15/03/2026" or month name
-  // try to parse it
+  const now=new Date();now.setHours(0,0,0,0);
+
+  // format: DD/MM/YYYY
   const parts=exp.split('/');
   if(parts.length===3){
-    const d=new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-    if(!isNaN(d)){const now=new Date();now.setHours(0,0,0,0);return d<now;}
+    const d=new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`);
+    if(!isNaN(d))return d<now;
   }
+
+  // format: "31 במאי 26" or "31 במאי 2026"
+  const heMonths={ינואר:1,פברואר:2,מרץ:3,אפריל:4,מאי:5,יוני:6,יולי:7,אוגוסט:8,ספטמבר:9,אוקטובר:10,נובמבר:11,דצמבר:12};
+  const m=exp.match(/(\d+)\s+ב?(\S+)\s+(\d+)/);
+  if(m){
+    const day=parseInt(m[1]),mon=heMonths[m[2]],yr=parseInt(m[3]);
+    if(day&&mon&&yr){
+      const fullYr=yr<100?2000+yr:yr;
+      const d=new Date(fullYr,mon-1,day);
+      if(!isNaN(d))return d<now;
+    }
+  }
+
+  // format: month name only like "אפריל" — treat as first of that month
+  const monthOnly=heMonths[exp.trim()];
+  if(monthOnly){
+    const yr=now.getFullYear();
+    const d=new Date(yr,monthOnly-1,1);
+    return d<now;
+  }
+
   return false;
 }
 
