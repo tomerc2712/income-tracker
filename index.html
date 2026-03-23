@@ -3809,7 +3809,6 @@ let gTokenClient = null;
 function gInit() {
   const savedUser = localStorage.getItem('g_user');
   const tokenExpiry = parseInt(localStorage.getItem('g_token_expiry')||'0');
-  const tokenStillValid = gToken && tokenExpiry > Date.now();
 
   if (window.google) {
     gTokenClient = google.accounts.oauth2.initTokenClient({
@@ -3822,7 +3821,6 @@ function gInit() {
           return;
         }
         gToken = resp.access_token;
-        // token valid for 55 minutes
         localStorage.setItem('g_token', gToken);
         localStorage.setItem('g_token_expiry', String(Date.now() + 55*60*1000));
         if (!gUser) {
@@ -3838,19 +3836,11 @@ function gInit() {
       }
     });
 
+    // always show login screen — but if user known, try silent refresh in background
+    initLoginScreen();
     if (savedUser && tokenExpiry > Date.now()) {
-      // token still valid — skip login screen
+      // token still valid — also do a silent background sync after login
       gUser = JSON.parse(savedUser);
-      gToken = localStorage.getItem('g_token');
-      showSignedIn();
-      gSyncOnLogin();
-    } else if (savedUser) {
-      // user known but token expired — silent refresh
-      gUser = JSON.parse(savedUser);
-      gTokenClient.requestAccessToken({ prompt: '' });
-    } else {
-      // first time
-      initLoginScreen();
     }
   } else {
     setTimeout(gInit, 500);
