@@ -470,7 +470,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <div class="fg"><label>תיאור / שם הפרויקט</label><input type="text" id="f-desc" placeholder="למשל: קמפיין טוליפ - בלאק פון"/></div>
         <div class="fg"><label>לקוח</label>
           <div class="client-row">
-            <div class="fg" style="margin-bottom:0"><select id="f-client"><option value="">בחר לקוח...</option></select></div>
+            <div class="fg" style="margin-bottom:0"><select id="f-client" onchange="onClientSelect(this)"><option value="">בחר לקוח...</option></select></div>
             <button class="btn-sm" onclick="addNewClientPrompt()">+ חדש</button>
           </div>
         </div>
@@ -599,6 +599,23 @@ body.mode-light .toggle-knob{right:auto;left:2px}
           <div class="fg"><label>איש קשר</label><input type="text" id="client-contact-name" placeholder="שם איש הקשר" oninput="saveClientMeta()"/></div>
           <div class="fg"><label>אימייל</label><input type="email" id="client-contact-email" placeholder="email@example.com" oninput="saveClientMeta()"/></div>
           <div class="fg"><label>טלפון</label><input type="tel" id="client-contact-phone" placeholder="050-0000000" oninput="saveClientMeta()"/></div>
+        </div>
+        <div class="form-grid" style="margin-top:10px">
+          <div class="fg">
+            <label>תנאי שוטף ברירת מחדל</label>
+            <select id="client-default-terms" onchange="saveClientMetaAndApply()">
+              <option value="">ללא ברירת מחדל</option>
+              <option value="מיידי">מיידי</option>
+              <option value="שוטף+30">שוטף + 30</option>
+              <option value="שוטף+45">שוטף + 45</option>
+              <option value="שוטף+75">שוטף + 75</option>
+              <option value="שוטף+90">שוטף + 90</option>
+              <option value="שוטף+120">שוטף + 120</option>
+            </select>
+          </div>
+          <div class="fg" style="display:flex;align-items:flex-end">
+            <button onclick="applyDefaultTermsToAll()" style="padding:8px 16px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer;width:100%">החל על כל העסקאות הקיימות</button>
+          </div>
         </div>
       </div>
       <div class="metrics" id="client-detail-metrics"></div>
@@ -1863,7 +1880,7 @@ function openClientDetail(name){
   document.getElementById('clients-list-view').style.display='none';
   document.getElementById('client-detail-view').style.display='block';
   document.getElementById('client-detail-name').textContent=name;
-  const cEntries=entries.filter(e=>e.client===name);
+  const cEntries=entries.filter(e=>e.client===name&&!e.deleted);
   const total=cEntries.reduce((s,e)=>s+getNet(e),0);
   const paid=cEntries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
   const debt=cEntries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
@@ -1873,6 +1890,7 @@ function openClientDetail(name){
   document.getElementById('client-contact-name').value = meta.contactName || '';
   document.getElementById('client-contact-email').value = meta.email || '';
   document.getElementById('client-contact-phone').value = meta.phone || '';
+  document.getElementById('client-default-terms').value = meta.defaultTerms || '';
   document.getElementById('client-detail-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">סה"כ</div><div class="metric-value blue">${fmt(total)}</div></div>
     <div class="metric"><div class="metric-label">שולם</div><div class="metric-value green">${fmt(paid)}</div></div>
@@ -1880,7 +1898,7 @@ function openClientDetail(name){
     <div class="metric"><div class="metric-label">עסקאות</div><div class="metric-value">${cEntries.length}</div></div>`;
   const tbl=document.getElementById('client-detail-tbl');
   if(!cEntries.length){tbl.innerHTML='<tr><td class="empty">אין עסקאות</td></tr>';return;}
-  const sorted=[...cEntries].sort((a,b)=>(b.date||'')>=(a.date||'')?1:-1);
+  const sorted=[...cEntries].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   tbl.innerHTML=`<thead><tr><th>תיאור</th><th>סכום</th><th>תאריך</th><th>סוג</th><th>חשבונית</th><th>תשלום</th><th>קבלה</th></tr></thead>
   <tbody>${sorted.map(e=>`<tr>
     <td class="td-desc">${e.desc}</td>
@@ -1921,8 +1939,37 @@ function saveClientMeta(){
     contactName: document.getElementById('client-contact-name').value,
     email: document.getElementById('client-contact-email').value,
     phone: document.getElementById('client-contact-phone').value,
+    defaultTerms: document.getElementById('client-default-terms').value,
   };
   saveClientMetaStore();
+}
+
+function saveClientMetaAndApply(){
+  saveClientMeta();
+}
+
+function applyDefaultTermsToAll(){
+  const terms = document.getElementById('client-default-terms').value;
+  if(!terms) return;
+  if(!confirm(`להחיל "${terms}" על כל העסקאות של ${currentDetailClient}?`)) return;
+  entries.forEach(e=>{
+    if(e.client===currentDetailClient&&!e.deleted){
+      e.terms=terms;
+      e.lastModified=Date.now();
+    }
+  });
+  save();
+  openClientDetail(currentDetailClient);
+}
+
+function onClientSelect(sel){
+  const client = sel.value;
+  if(!client) return;
+  const meta = clientMeta[client] || {};
+  if(meta.defaultTerms){
+    const termsEl = document.getElementById('f-terms');
+    if(termsEl){ termsEl.value = meta.defaultTerms; calcExpected(); }
+  }
 }
 
 function saveClientMetaStore(){
