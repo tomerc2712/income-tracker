@@ -3989,29 +3989,28 @@ function initLoginScreen(){
   window.addEventListener('resize',()=>{w=canvas.width=window.innerWidth;h2=canvas.height=window.innerHeight;});
 
   let t=0;
+  const waves=[
+    {amp:30,freq:0.0016,speed:0.008,y:0.72,alpha:0.08},
+    {amp:22,freq:0.0022,speed:0.013,y:0.78,alpha:0.07},
+    {amp:16,freq:0.003, speed:0.02, y:0.83,alpha:0.05},
+  ];
+
   function draw(){
     ctx2.clearRect(0,0,w,h2);
-    // dark green bg
     ctx2.fillStyle='#030f07';
     ctx2.fillRect(0,0,w,h2);
 
-    // draw 4 soft waves
-    const waves=[
-      {amp:38,freq:0.0018,speed:0.012,y:0.55,alpha:0.07},
-      {amp:28,freq:0.0024,speed:0.018,y:0.62,alpha:0.06},
-      {amp:20,freq:0.003,speed:0.025,y:0.68,alpha:0.05},
-      {amp:45,freq:0.0013,speed:0.008,y:0.48,alpha:0.04},
-    ];
     waves.forEach(wave=>{
       ctx2.beginPath();
       ctx2.moveTo(0,h2);
-      for(let x=0;x<=w;x+=4){
-        const y=h2*wave.y+Math.sin(x*wave.freq+t*wave.speed)*wave.amp;
+      for(let x=0;x<=w;x+=3){
+        const y=h2*wave.y
+          + Math.sin(x*wave.freq + t*wave.speed)*wave.amp
+          + Math.sin(x*wave.freq*1.6 + t*wave.speed*1.3)*wave.amp*0.35;
         ctx2.lineTo(x,y);
       }
-      ctx2.lineTo(w,h2);
-      ctx2.closePath();
-      const grad=ctx2.createLinearGradient(0,h2*wave.y-wave.amp,0,h2);
+      ctx2.lineTo(w,h2);ctx2.closePath();
+      const grad=ctx2.createLinearGradient(0,h2*wave.y-wave.amp*2,0,h2);
       grad.addColorStop(0,`rgba(52,211,153,${wave.alpha})`);
       grad.addColorStop(1,'rgba(52,211,153,0)');
       ctx2.fillStyle=grad;
