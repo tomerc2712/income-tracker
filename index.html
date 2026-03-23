@@ -1169,6 +1169,7 @@ function upd(id,field,val){
   const idx=entries.findIndex(e=>e.id===id);
   if(idx<0)return;
   entries[idx][field]=val;
+  entries[idx].lastModified=Date.now();
   save();renderAll();
 }
 
@@ -1864,7 +1865,7 @@ function addEntry(){
   const invoice=document.getElementById('f-invoice').value;
   const receipt=document.getElementById('f-receipt').value;
   const notes=document.getElementById('f-notes').value.trim();
-  const entry={id:Date.now(),desc,client,amount,date,month:dateToMonth(date),includes_vat:vat,work_type:wtype,pay_status:pay,terms,expected_payment:expCalc?fmtDate(expCalc):'',invoice_status:invoice,receipt_status:receipt,notes,receiptFile:pendingFile||null};
+  const entry={id:Date.now(),desc,client,amount,date,month:dateToMonth(date),includes_vat:vat,work_type:wtype,pay_status:pay,terms,expected_payment:expCalc?fmtDate(expCalc):'',invoice_status:invoice,receipt_status:receipt,notes,receiptFile:pendingFile||null,lastModified:Date.now()};
   entries.unshift(entry);
   save();
   if(client&&!allClients().includes(client)){customClients.push(client);saveMeta();}
@@ -3476,12 +3477,10 @@ async function gFetch(url, opts = {}) {
 async function gSyncAll() {
   if (!gToken || gSyncing) return;
   gSyncing = true;
-  setSyncStatus('⏳ שומר...');
+  setSyncStatus('⏳ מסנכרן...');
   try {
     await gEnsureSheets();
-    await gPushEntries();
-    await gPushMeta();
-    await gPushAlin();
+    await gMergeSync();
     setSyncStatus('✓ מסונכרן');
   } catch(e) {
     console.error('Sync error:', e);
@@ -3490,11 +3489,79 @@ async function gSyncAll() {
   gSyncing = false;
 }
 
-// on login — always pull from Sheets first, never push
+// Smart merge sync — compares timestamps, always keeps newer version
+async function gMergeSync() {
+  // 1. fetch what's in Sheets
+  const r = await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:O10000`);
+  if (!r) return;
+  const d = await r.json();
+
+  let sheetsEntries = [];
+  if (d.values && d.values.length > 1) {
+    const [, ...rows] = d.values;
+    sheetsEntries = rows.map(r => ({
+      id: parseInt(r[0])||0, date: r[1]||'', client: r[2]||'',
+      desc: r[3]||'', work_type: r[4]||'', amount: parseFloat(r[5])||0,
+      includes_vat: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
+      receipt_status: r[9]||'', terms: r[10]||'', expected_payment: r[11]||'',
+      notes: r[12]||'', receiptFileId: r[13]||'', lastModified: parseInt(r[14])||0,
+      receiptFile: null, month: r[1]?r[1].slice(0,7):''
+    })).filter(e => e.id > 0);
+  }
+
+  // 2. build maps by id
+  const localMap = {};
+  entries.forEach(e => { localMap[e.id] = e; });
+  const sheetsMap = {};
+  sheetsEntries.forEach(e => { sheetsMap[e.id] = e; });
+
+  // 3. merge — keep newer version of each entry
+  const allIds = new Set([...Object.keys(localMap), ...Object.keys(sheetsMap)].map(Number));
+  const merged = [];
+  allIds.forEach(id => {
+    const local = localMap[id];
+    const sheet = sheetsMap[id];
+    if (local && sheet) {
+      // both exist — keep newer
+      merged.push((local.lastModified||0) >= (sheet.lastModified||0) ? local : sheet);
+    } else if (local) {
+      merged.push(local); // only local — push to sheets
+    } else {
+      merged.push(sheet); // only in sheets — pull to local
+    }
+  });
+
+  // 4. sort by date desc
+  merged.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  // 5. update local if changed
+  const localJson = JSON.stringify(entries.map(e=>({...e, receiptFile:null})));
+  const mergedJson = JSON.stringify(merged.map(e=>({...e, receiptFile:null})));
+  if (localJson !== mergedJson) {
+    // preserve receiptFile from local
+    merged.forEach(e => { if (localMap[e.id]) e.receiptFile = localMap[e.id].receiptFile||null; });
+    entries = merged;
+    try{localStorage.setItem(SK,JSON.stringify(entries));}catch(ex){}
+    populateFilters(); renderAll();
+  }
+
+  // 6. push merged to Sheets
+  await gPushEntries();
+  await gPushMeta();
+  await gPushAlin();
+}
+
+// on login — merge sync (safe, never blindly overwrites)
 async function gSyncOnLogin() {
-  setSyncStatus('⏳ טוען...');
-  const success = await gPullAll();
-  if (!success) setSyncStatus('⚠️ שגיאה', true);
+  setSyncStatus('⏳ מסנכרן...');
+  try {
+    await gEnsureSheets();
+    await gMergeSync();
+    setSyncStatus('✓ מסונכרן');
+  } catch(e) {
+    console.error('Login sync error:', e);
+    setSyncStatus('⚠️ שגיאה', true);
+  }
 }
 
 async function gEnsureSheets() {
@@ -3517,14 +3584,15 @@ async function gEnsureSheets() {
 
 async function gPushEntries() {
   if (!entries || entries.length === 0) return;
-  const headers = ['id','date','client','desc','type','amount','includes_vat','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId'];
+  const headers = ['id','date','client','desc','type','amount','includes_vat','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId','lastModified'];
   const rows = [headers, ...entries.map(e => [
     e.id||'', e.date||'', e.client||'', e.desc||'',
     e.work_type||'', e.amount||'', e.includes_vat?'1':'',
     e.pay_status||'', e.invoice_status||'', e.receipt_status||'',
-    e.terms||'', e.expected_payment||'', e.notes||'', e.receiptFileId||''
+    e.terms||'', e.expected_payment||'', e.notes||'', e.receiptFileId||'',
+    e.lastModified||Date.now()
   ])];
-  await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:N${rows.length}?valueInputOption=RAW`, {
+  await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:O${rows.length}?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: rows })
@@ -3700,6 +3768,9 @@ function saveMeta() {
   try{localStorage.setItem(MK,JSON.stringify({types:customTypes,clients:customClients,deleted:deletedClients}));}catch(e){}
   if (gToken) { clearTimeout(window._syncTimer); window._syncTimer = setTimeout(gSyncAll, 1500); }
 }
+
+// auto-sync every 30 seconds in background
+setInterval(() => { if (gToken && !gSyncing) gSyncAll(); }, 30000);
 
 // ── INIT ──────────────────────────────────────────────────
 document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
