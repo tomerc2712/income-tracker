@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>מעקב הכנסות — תומר</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -33,7 +35,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);min-h
 .theme-btn{width:24px;height:24px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;position:relative;transition:transform .18s,box-shadow .18s}
 .theme-btn:hover{transform:scale(1.25)}
 .theme-btn.active{box-shadow:0 0 0 2.5px #fff,0 0 0 4.5px rgba(255,255,255,0.2)}
-.theme-btn .tt{position:absolute;bottom:calc(100%+8px);left:50%;transform:translateX(-50%);background:rgba(20,22,35,0.97);color:#e8eaf0;font-size:11px;font-weight:600;font-family:'Heebo',sans-serif;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;border:0.5px solid rgba(255,255,255,0.12);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.theme-btn .tt{position:absolute;bottom:calc(100%+8px);left:50%;transform:translateX(-50%);background:rgba(20,22,35,0.97);color:#e8eaf0;font-size:11px;font-weight:600;font-family:'Heebo',sans-serif;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;border:0.5px solid rgba(255,255,255,0.12);box-shadow:0 4px 12px rgba(0,0,0,.4);z-index:999}
 .theme-btn:hover .tt{opacity:1}
 .theme-label{font-size:11px;color:var(--muted)}
 
@@ -386,11 +388,11 @@ body.mode-light .toggle-knob{right:auto;left:2px}
     </button>
     <div style="width:1px;height:18px;background:var(--border-strong);margin:0 2px"></div>
     <span class="theme-label">ערכת צבעים:</span>
-    <div class="theme-btn active" data-theme="" style="background:linear-gradient(135deg,#0f1117,#6c7bff)" onclick="setTheme(this,'')"><span class="tt">Dark Violet</span></div>
-    <div class="theme-btn" data-theme="navy" style="background:linear-gradient(135deg,#0a0e1a,#4f8cff)" onclick="setTheme(this,'navy')"><span class="tt">Deep Navy</span></div>
-    <div class="theme-btn" data-theme="slate" style="background:linear-gradient(135deg,#0d1117,#58a6ff)" onclick="setTheme(this,'slate')"><span class="tt">Carbon Blue</span></div>
-    <div class="theme-btn" data-theme="midnight" style="background:linear-gradient(135deg,#07080f,#a78bfa)" onclick="setTheme(this,'midnight')"><span class="tt">Midnight Haze</span></div>
-    <div class="theme-btn" data-theme="forest" style="background:linear-gradient(135deg,#0a110f,#34d399)" onclick="setTheme(this,'forest')"><span class="tt">Dark Forest</span></div>
+    <div class="theme-btn active" data-theme="" style="background:linear-gradient(135deg,#0f1117,#6c7bff)" onclick="setTheme(this,'')"><span class="tt">סגול כהה</span></div>
+    <div class="theme-btn" data-theme="navy" style="background:linear-gradient(135deg,#0a0e1a,#4f8cff)" onclick="setTheme(this,'navy')"><span class="tt">כחול לילה</span></div>
+    <div class="theme-btn" data-theme="slate" style="background:linear-gradient(135deg,#0d1117,#58a6ff)" onclick="setTheme(this,'slate')"><span class="tt">כחול פלדה</span></div>
+    <div class="theme-btn" data-theme="midnight" style="background:linear-gradient(135deg,#07080f,#a78bfa)" onclick="setTheme(this,'midnight')"><span class="tt">חצות</span></div>
+    <div class="theme-btn" data-theme="forest" style="background:linear-gradient(135deg,#0a110f,#34d399);" onclick="setTheme(this,'forest')"><span class="tt">יער כהה</span></div>
   </div>
 
   <div class="tabs">
@@ -994,7 +996,12 @@ body.mode-light .toggle-knob{right:auto;left:2px}
     <div class="modal-title">עריכת עסקה <button class="modal-close" onclick="closeModal('edit-modal')">×</button></div>
     <div class="form-grid">
       <div class="fg"><label>תיאור</label><input type="text" id="e-desc"/></div>
-      <div class="fg"><label>לקוח</label><input type="text" id="e-client"/></div>
+      <div class="fg"><label>לקוח</label>
+        <div class="client-row">
+          <div class="fg" style="margin-bottom:0"><select id="e-client"><option value="">בחר לקוח...</option></select></div>
+          <button class="btn-sm" onclick="addNewClientPrompt()">+ חדש</button>
+        </div>
+      </div>
     </div>
     <div class="form-grid">
       <div class="fg"><label>סכום (₪)</label><input type="text" id="e-amount" oninput="formatAmountInput(this)"/></div>
@@ -1315,8 +1322,9 @@ function dashPopFilters(){
 function getDashFiltered(){
   const y=document.getElementById('dash-f-year')?.value||'';
   const m=document.getElementById('dash-f-month')?.value||'';
-  if(!y&&!m)return entries;
-  return entries.filter(e=>{
+  const active=entries.filter(e=>!e.deleted);
+  if(!y&&!m)return active;
+  return active.filter(e=>{
     const em=e.month||'';
     if(y&&!em.startsWith(y))return false;
     if(m&&em.substring(5,7)!==m)return false;
@@ -1451,6 +1459,7 @@ function getFiltered(){
   const fC=document.getElementById('filter-client')?.value||'';
   const fM=document.getElementById('filter-month')?.value||'';
   return entries.filter(e=>{
+    if(e.deleted)return false;
     if(s&&!(e.desc||'').toLowerCase().includes(s)&&!(e.client||'').toLowerCase().includes(s))return false;
     if(fP&&e.pay_status!==fP)return false;
     if(fT&&e.work_type!==fT)return false;
@@ -1637,7 +1646,7 @@ function toggleSel(id,cb){if(cb.checked)selectedIds.add(id);else selectedIds.del
 function toggleAll(cb){const f=getFiltered();if(cb.checked)f.forEach(e=>selectedIds.add(e.id));else selectedIds.clear();updateBulkBar();renderTable();}
 function clearSel(){selectedIds.clear();updateBulkBar();renderTable();}
 function bulkSet(field,val){selectedIds.forEach(id=>{const idx=entries.findIndex(e=>e.id===id);if(idx>=0)entries[idx][field]=val;});save();selectedIds.clear();renderAll();}
-function bulkDel(){if(!confirm(`למחוק ${selectedIds.size} עסקאות?`))return;entries=entries.filter(e=>!selectedIds.has(e.id));save();selectedIds.clear();renderAll();}
+function bulkDel(){if(!confirm(`למחוק ${selectedIds.size} עסקאות?`))return;entries.forEach(e=>{if(selectedIds.has(e.id)){e.deleted=true;e.lastModified=Date.now();}});save();selectedIds.clear();renderAll();}
 function renderClients(){
   const search=(document.getElementById('clients-search')?.value||'').toLowerCase();
   const clients=allClients().filter(c=>!search||c.toLowerCase().includes(search));
@@ -1750,7 +1759,11 @@ function deleteClient(name){
 
 // ── FILES PAGE ────────────────────────────────────────────
 function renderFiles(){
-  const files=entries.filter(e=>e.receiptFile).map(e=>({...e.receiptFile,entryId:e.id,entryDesc:e.desc}));
+  const files=entries.filter(e=>!e.deleted&&(e.receiptFile||e.receiptFileId)).map(e=>({
+    ...( e.receiptFile||{}),
+    entryId:e.id, entryDesc:e.desc,
+    isDrive:!!e.receiptFileId, driveId:e.receiptFileId||''
+  }));
   const grid=document.getElementById('files-grid');
   const empty=document.getElementById('files-empty');
   const cnt=document.getElementById('files-count');
@@ -1759,17 +1772,30 @@ function renderFiles(){
   if(empty)empty.style.display='none';
   if(!grid)return;
   grid.innerHTML=files.map(f=>{
-    const icon=f.type==='application/pdf'?'📄':'🖼️';
+    const icon=f.isDrive?'☁️':(f.type==='application/pdf'?'📄':'🖼️');
+    const viewBtn=f.isDrive
+      ?`<a href="https://drive.google.com/file/d/${f.driveId}/view" target="_blank" class="file-card-btn" style="text-decoration:none">צפה</a>`
+      :`<button class="file-card-btn" onclick="viewReceipt(${f.entryId})">צפה</button>`;
+    const dlBtn=f.isDrive?'':`<button class="file-card-btn" onclick="downloadFile(${f.entryId})">הורד</button>`;
     return`<div class="file-card">
       <div class="file-card-icon">${icon}</div>
-      <div class="file-card-name">${f.name}</div>
+      <div class="file-card-name">${f.name||f.driveId}</div>
       <div class="file-card-meta">${f.entryDesc||''}</div>
       <div class="file-card-btns">
-        <button class="file-card-btn" onclick="viewReceipt(${f.entryId})">צפה</button>
-        <button class="file-card-btn" onclick="downloadFile(${f.entryId})">הורד</button>
+        ${viewBtn}${dlBtn}
+        <button class="file-card-btn" style="color:var(--unpaid)" onclick="deleteFile(${f.entryId})">מחק</button>
       </div>
     </div>`;
   }).join('');
+}
+function deleteFile(id){
+  if(!confirm('למחוק את הקובץ?'))return;
+  const idx=entries.findIndex(e=>e.id===id);
+  if(idx<0)return;
+  entries[idx].receiptFile=null;
+  entries[idx].receiptFileId='';
+  entries[idx].lastModified=Date.now();
+  save();renderFiles();renderTable();
 }
 function downloadFile(id){
   const e=entries.find(x=>x.id===id);if(!e||!e.receiptFile)return;
@@ -1885,13 +1911,17 @@ function addEntry(){
 }
 
 // ── EDIT ──────────────────────────────────────────────────
-function delEntry(id){if(!confirm('למחוק?'))return;entries=entries.filter(e=>e.id!==id);save();renderAll();}
+function delEntry(id){if(!confirm('למחוק?'))return;const idx=entries.findIndex(e=>e.id===id);if(idx>=0){entries[idx].deleted=true;entries[idx].lastModified=Date.now();}save();renderAll();}
 
 function openEdit(id){
   const e=entries.find(x=>x.id===id);if(!e)return;
   editId=id;editFile=e.receiptFile||null;
   document.getElementById('e-desc').value=e.desc||'';
-  document.getElementById('e-client').value=e.client||'';
+  // populate client dropdown
+  const eSel=document.getElementById('e-client');
+  eSel.innerHTML='<option value="">בחר לקוח...</option>'+allClients().map(c=>`<option value="${c}"${c===e.client?'selected':''}>${c}</option>`).join('');
+  if(e.client&&!allClients().includes(e.client)){eSel.innerHTML+=`<option value="${e.client}" selected>${e.client}</option>`;}
+  eSel.value=e.client||'';
   const ea=document.getElementById('e-amount');
   if(ea){ea.value=e.amount?Number(e.amount).toLocaleString('he-IL'):'';ea.dataset.raw=e.amount||'';}
   document.getElementById('e-date').value=e.date||'';
