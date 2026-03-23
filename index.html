@@ -3522,7 +3522,7 @@ async function gSyncAll() {
 // Smart merge sync — compares timestamps, always keeps newer version
 async function gMergeSync() {
   // 1. fetch what's in Sheets
-  const r = await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:O10000`);
+  const r = await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:P10000`);
   if (!r) return;
   const d = await r.json();
 
@@ -3535,6 +3535,7 @@ async function gMergeSync() {
       includes_vat: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
       receipt_status: r[9]||'', terms: r[10]||'', expected_payment: r[11]||'',
       notes: r[12]||'', receiptFileId: r[13]||'', lastModified: parseInt(r[14])||0,
+      deleted: r[15]==='1',
       receiptFile: null, month: r[1]?r[1].slice(0,7):''
     })).filter(e => e.id > 0);
   }
@@ -3614,15 +3615,15 @@ async function gEnsureSheets() {
 
 async function gPushEntries() {
   if (!entries || entries.length === 0) return;
-  const headers = ['id','date','client','desc','type','amount','includes_vat','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId','lastModified'];
+  const headers = ['id','date','client','desc','type','amount','includes_vat','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId','lastModified','deleted'];
   const rows = [headers, ...entries.map(e => [
     e.id||'', e.date||'', e.client||'', e.desc||'',
     e.work_type||'', e.amount||'', e.includes_vat?'1':'',
     e.pay_status||'', e.invoice_status||'', e.receipt_status||'',
     e.terms||'', e.expected_payment||'', e.notes||'', e.receiptFileId||'',
-    e.lastModified||Date.now()
+    e.lastModified||Date.now(), e.deleted?'1':''
   ])];
-  await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:O${rows.length}?valueInputOption=RAW`, {
+  await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${G_SHEET_ID}/values/%D7%94%D7%9B%D7%A0%D7%A1%D7%95%D7%AA!A1:P${rows.length}?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: rows })
