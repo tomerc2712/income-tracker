@@ -453,8 +453,8 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <div class="fg"><label>תאריך ביצוע עבודה</label><input type="date" id="f-date" onchange="calcExpected()"/></div>
       </div>
       <div class="vat-row">
-        <input type="checkbox" id="f-vat" onchange="updateVatHint()"/>
-        <label for="f-vat">הסכום כולל מע"מ (18%)</label>
+        <input type="checkbox" id="f-vat-exempt" onchange="updateVatHint()"/>
+        <label for="f-vat-exempt">עסקה לא חייבת במע"מ</label>
         <span class="vat-hint" id="vat-hint"></span>
       </div>
       <div class="form-grid-3">
@@ -1009,7 +1009,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
       <div class="fg"><label>סכום (₪)</label><input type="text" id="e-amount" oninput="formatAmountInput(this)"/></div>
       <div class="fg"><label>תאריך ביצוע</label><input type="date" id="e-date" onchange="calcExpectedEdit()"/></div>
     </div>
-    <div class="vat-row"><input type="checkbox" id="e-vat"/><label for="e-vat">כולל מע"מ (18%)</label></div>
+    <div class="vat-row"><input type="checkbox" id="e-vat-exempt"/><label for="e-vat-exempt">עסקה לא חייבת במע"מ</label></div>
     <div class="form-grid-3">
       <div class="fg"><label>סוג</label><select id="e-type"></select></div>
       <div class="fg"><label>תנאי תשלום</label>
@@ -1309,8 +1309,9 @@ function onTermsChange(sel){
   }
 }
 function updateVatHint(){
-  const c=document.getElementById('f-vat')?.checked,a=getRawAmount('f-amount')||0,h=document.getElementById('vat-hint');
-  if(h)h.textContent=(c&&a)?`נטו: ${fmt(Math.round(a/VAT))}`:'';
+  const exempt=document.getElementById('f-vat-exempt')?.checked;
+  const h=document.getElementById('vat-hint');
+  if(h)h.textContent=exempt?'פטור ממע"מ':'חייב במע"מ 18%';
 }
 
 // ── DASHBOARD FILTER ──────────────────────────────────────
@@ -1374,21 +1375,40 @@ function renderSidebar(){
   const now=new Date();
   const cm=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const pm=`${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
-  const curPaid=entries.filter(e=>e.month===cm&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
-  const curUnpaid=entries.filter(e=>e.month===cm&&e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
-  const prevPaid=entries.filter(e=>e.month===pm&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
-  const totalDebt=entries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
-  const debtCount=entries.filter(e=>e.pay_status==='טרם שולם').length;
+  const curPaid=entries.filter(e=>!e.deleted&&e.month===cm&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
+  const curUnpaid=entries.filter(e=>!e.deleted&&e.month===cm&&e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
+  const prevPaid=entries.filter(e=>!e.deleted&&e.month===pm&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
+  const totalDebt=entries.filter(e=>!e.deleted&&e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
+  const debtCount=entries.filter(e=>!e.deleted&&e.pay_status==='טרם שולם').length;
   const delta=prevPaid>0?Math.round((curPaid-prevPaid)/prevPaid*100):0;
   const deltaStr=delta>=0?`▲ ${delta}%`:`▼ ${Math.abs(delta)}%`;
   const deltaColor=delta>=0?'var(--paid)':'var(--unpaid)';
   const yr=String(now.getFullYear());
   const cMap={};
-  entries.filter(e=>e.month?.startsWith(yr)&&e.pay_status==='שולם'&&e.client).forEach(e=>{cMap[e.client]=(cMap[e.client]||0)+getNet(e);});
+  entries.filter(e=>!e.deleted&&e.month?.startsWith(yr)&&e.pay_status==='שולם'&&e.client).forEach(e=>{cMap[e.client]=(cMap[e.client]||0)+getNet(e);});
   const topC=Object.entries(cMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
-  const avgDeal=entries.filter(e=>e.pay_status==='שולם').length?Math.round(entries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0)/entries.filter(e=>e.pay_status==='שולם').length):0;
-  const noInv=entries.filter(e=>e.pay_status==='שולם'&&e.invoice_status!=='נשלחה חשבונית').length;
-  const noRec=entries.filter(e=>e.pay_status==='שולם'&&e.receipt_status==='טרם יצאה קבלה').length;
+  const avgDeal=entries.filter(e=>!e.deleted&&e.pay_status==='שולם').length?Math.round(entries.filter(e=>!e.deleted&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0)/entries.filter(e=>!e.deleted&&e.pay_status==='שולם').length):0;
+  const noInv=entries.filter(e=>!e.deleted&&e.pay_status==='שולם'&&e.invoice_status!=='נשלחה חשבונית').length;
+  const noRec=entries.filter(e=>!e.deleted&&e.pay_status==='שולם'&&e.receipt_status==='טרם יצאה קבלה').length;
+
+  // VAT/TAX calculation — bimonthly even cycle (Feb/Apr/Jun/Aug/Oct/Dec)
+  const curMonthNum=now.getMonth()+1; // 1-12
+  // current bimonthly period: even months report, so find current period
+  const periodEndMonth=curMonthNum%2===0?curMonthNum:curMonthNum+1; // next even month
+  const periodStartMonth=periodEndMonth-1;
+  const periodYear=now.getFullYear();
+  const periodMonths=[
+    `${periodYear}-${String(periodStartMonth).padStart(2,'0')}`,
+    `${periodYear}-${String(periodEndMonth).padStart(2,'0')}`
+  ];
+  const vatEntries=entries.filter(e=>!e.deleted&&!e.vat_exempt&&periodMonths.includes(e.month));
+  const vatBase=vatEntries.reduce((s,e)=>s+(e.amount||0),0);
+  const vatDue=Math.round(vatBase*0.18);
+  const taxBase=entries.filter(e=>!e.deleted&&periodMonths.includes(e.month)).reduce((s,e)=>s+(e.amount||0),0);
+  const taxDue=Math.round(taxBase*0.05);
+  const mNames=['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const periodLabel=`${mNames[periodStartMonth]}–${mNames[periodEndMonth]} ${periodYear}`;
+
   document.getElementById('sidebar-content').innerHTML=`
     <div class="sidebar-card">
       <div class="sidebar-title">חודש נוכחי — ${fmtMonthStr(cm)}</div>
@@ -1397,6 +1417,13 @@ function renderSidebar(){
       <div class="sidebar-stat"><span class="sidebar-stat-label">מול חודש שעבר</span><span class="sidebar-stat-value" style="color:${deltaColor}">${deltaStr}</span></div>
       <div class="sidebar-stat"><span class="sidebar-stat-label">חוב כולל פתוח</span><span class="sidebar-stat-value yellow">${fmt(totalDebt)}</span></div>
       <div class="sidebar-stat"><span class="sidebar-stat-label">עסקאות פתוחות</span><span class="sidebar-stat-value blue">${debtCount}</span></div>
+    </div>
+    <div class="sidebar-card" style="border-color:rgba(255,180,0,0.25)">
+      <div class="sidebar-title" style="color:var(--warn)">💰 תשלומי מס — ${periodLabel}</div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">מע"מ לתשלום (18%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(vatDue)}</span></div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">מקדמת מס הכנסה (5%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(taxDue)}</span></div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">סה"כ לשלם</span><span class="sidebar-stat-value red">${fmt(vatDue+taxDue)}</span></div>
+      <div style="font-size:10px;color:var(--hint);margin-top:6px">מע"מ על עסקאות חייבות בלבד · מס על כלל ההכנסות</div>
     </div>
     <div class="sidebar-card">
       <div class="sidebar-title">לקוחות מובילים ${yr}</div>
@@ -1408,7 +1435,65 @@ function renderSidebar(){
       <div class="insight-item">עסקה ממוצעת: <strong>${fmt(avgDeal)}</strong></div>
       <div class="insight-item">חשבוניות חסרות לשולם: <strong style="color:${noInv?'var(--unpaid)':'var(--paid)'}">${noInv}</strong></div>
       <div class="insight-item">קבלות חסרות לשולם: <strong style="color:${noRec?'var(--warn)':'var(--paid)'}">${noRec}</strong></div>
+    </div>
+    <div class="sidebar-card" id="ai-insight-card" style="border-color:rgba(139,92,246,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="sidebar-title" style="margin-bottom:0;color:#a78bfa">✨ ניתוח AI</div>
+        <button onclick="runAIInsight()" id="ai-refresh-btn" style="padding:3px 10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:6px;color:#a78bfa;font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">רענן</button>
+      </div>
+      <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
     </div>`;
+}
+
+async function runAIInsight(){
+  const btn=document.getElementById('ai-refresh-btn');
+  const content=document.getElementById('ai-insight-content');
+  if(!content)return;
+  if(btn)btn.disabled=true;
+  content.innerHTML='<span style="color:var(--hint)">⏳ מנתח נתונים...</span>';
+
+  const now=new Date();
+  const yr=String(now.getFullYear());
+  const active=entries.filter(e=>!e.deleted);
+  const totalIncome=active.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+  const totalUnpaid=active.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+(e.amount||0),0);
+  const thisYearIncome=active.filter(e=>e.month?.startsWith(yr)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+  const clientMap={};
+  active.filter(e=>e.client&&e.pay_status==='שולם').forEach(e=>{clientMap[e.client]=(clientMap[e.client]||0)+(e.amount||0);});
+  const topClients=Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([c,v])=>`${c}: ₪${v.toLocaleString()}`).join(', ');
+  const monthMap={};
+  active.forEach(e=>{if(e.month&&e.pay_status==='שולם')monthMap[e.month]=(monthMap[e.month]||0)+(e.amount||0);});
+  const recentMonths=Object.entries(monthMap).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6).map(([m,v])=>`${m}: ₪${v.toLocaleString()}`).join(', ');
+  const longDebt=active.filter(e=>e.pay_status==='טרם שולם'&&e.date&&(new Date()-new Date(e.date))>60*24*60*60*1000);
+
+  const prompt=`אתה יועץ פיננסי לעצמאים בישראל. נתח את הנתונים הבאים של עוסק מורשה ותן 4-5 תובנות אסטרטגיות קצרות בעברית (כל תובנה שורה אחת עם אימוג'י):
+
+סה"כ הכנסות ששולמו: ₪${totalIncome.toLocaleString()}
+הכנסות ${yr}: ₪${thisYearIncome.toLocaleString()}
+חוב פתוח: ₪${totalUnpaid.toLocaleString()} (${active.filter(e=>e.pay_status==='טרם שולם').length} עסקאות)
+חוב ישן מעל 60 יום: ${longDebt.length} עסקאות
+לקוחות מובילים: ${topClients}
+הכנסות 6 חודשים אחרונים: ${recentMonths}
+
+תן תובנות פרקטיות, ישירות, ממוקדות בשליטה על תזרים מזומנים ובניית הכנסה יציבה. אל תכתוב כותרת.`;
+
+  try {
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:600,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await resp.json();
+    const text=data.content?.[0]?.text||'לא ניתן לקבל ניתוח';
+    content.innerHTML=text.split('\n').filter(l=>l.trim()).map(l=>`<div style="margin-bottom:6px">${l}</div>`).join('');
+  } catch(e) {
+    content.innerHTML='<span style="color:var(--unpaid)">שגיאה בטעינת ניתוח</span>';
+  }
+  if(btn)btn.disabled=false;
 }
 
 // ── BAR CHART ─────────────────────────────────────────────
@@ -1461,7 +1546,7 @@ function renderBarChart(){
         {label:'טרם שולם',data:clients.map(c=>clientMap[c].unpaid),backgroundColor:'rgba(255,92,92,.65)',borderRadius:4}
       ]},options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11,family:'Heebo'},color:'rgba(255,255,255,.5)'}}},
-        scales:{x:{grid:{display:false},ticks:{color:'rgba(255,255,255,.3)',font:{size:10,family:'Heebo'}},border:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'rgba(255,255,255,.4)',font:{size:10,family:'Heebo'},maxRotation:30},border:{display:false}},
           y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'rgba(255,255,255,.3)',font:{size:9,family:'Heebo'},callback:v=>'₪'+v.toLocaleString()},border:{display:false}}}}});
     return;
   }
@@ -1927,7 +2012,7 @@ function addEntry(){
   const client=document.getElementById('f-client').value||'';
   const amount=getRawAmount('f-amount');
   const date=document.getElementById('f-date').value;
-  const vat=document.getElementById('f-vat').checked;
+  const vat=document.getElementById('f-vat-exempt').checked;
   const wtype=document.getElementById('f-type').value;
   const pay=document.getElementById('f-pay').value;
   const terms=document.getElementById('f-terms').value;
@@ -1935,14 +2020,14 @@ function addEntry(){
   const invoice=document.getElementById('f-invoice').value;
   const receipt=document.getElementById('f-receipt').value;
   const notes=document.getElementById('f-notes').value.trim();
-  const entry={id:Date.now(),desc,client,amount,date,month:dateToMonth(date),includes_vat:vat,work_type:wtype,pay_status:pay,terms,expected_payment:expCalc?fmtDate(expCalc):'',invoice_status:invoice,receipt_status:receipt,notes,receiptFile:pendingFile||null,lastModified:Date.now()};
+  const entry={id:Date.now(),desc,client,amount,date,month:dateToMonth(date),vat_exempt:vat,work_type:wtype,pay_status:pay,terms,expected_payment:expCalc?fmtDate(expCalc):'',invoice_status:invoice,receipt_status:receipt,notes,receiptFile:pendingFile||null,lastModified:Date.now()};
   entries.unshift(entry);
   save();
   if(client&&!allClients().includes(client)){customClients.push(client);saveMeta();}
   pendingFile=null;
   ['f-desc','f-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-amount').value='';document.getElementById('f-amount').dataset.raw='';
-  document.getElementById('f-vat').checked=false;document.getElementById('vat-hint').textContent='';
+  document.getElementById('f-vat-exempt').checked=false;document.getElementById('vat-hint').textContent='';
   document.getElementById('f-expected-calc').value='';
   document.getElementById('f-file-tag').innerHTML='';document.getElementById('f-invoice-file').value='';
   // Reset to defaults
@@ -1969,7 +2054,7 @@ function openEdit(id){
   const ea=document.getElementById('e-amount');
   if(ea){ea.value=e.amount?Number(e.amount).toLocaleString('he-IL'):'';ea.dataset.raw=e.amount||'';}
   document.getElementById('e-date').value=e.date||'';
-  document.getElementById('e-vat').checked=e.includes_vat||false;
+  document.getElementById('e-vat-exempt').checked=e.vat_exempt||false;
   populateFilters();
   document.getElementById('e-type').value=e.work_type||'אחר';
   document.getElementById('e-pay').value=e.pay_status||'שולם';
@@ -1996,7 +2081,7 @@ function saveEdit(){
     client:document.getElementById('e-client').value.trim(),
     amount:getRawAmount('e-amount'),
     date,month:dateToMonth(date),
-    includes_vat:document.getElementById('e-vat').checked,
+    vat_exempt:document.getElementById('e-vat-exempt').checked,
     work_type:document.getElementById('e-type').value,
     pay_status:document.getElementById('e-pay').value,
     terms,expected_payment:expCalc?fmtDate(expCalc):'',
@@ -3577,7 +3662,7 @@ async function gMergeSync() {
     sheetsEntries = rows.map(r => ({
       id: parseInt(r[0])||0, date: r[1]||'', client: r[2]||'',
       desc: r[3]||'', work_type: r[4]||'', amount: parseFloat(r[5])||0,
-      includes_vat: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
+      vat_exempt: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
       receipt_status: r[9]||'', terms: r[10]||'', expected_payment: r[11]||'',
       notes: r[12]||'', receiptFileId: r[13]||'', lastModified: parseInt(r[14])||0,
       deleted: r[15]==='1',
@@ -3666,10 +3751,10 @@ async function gEnsureSheets() {
 
 async function gPushEntries() {
   if (!entries || entries.length === 0) return;
-  const headers = ['id','date','client','desc','type','amount','includes_vat','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId','lastModified','deleted'];
+  const headers = ['id','date','client','desc','type','amount','vat_exempt','pay_status','invoice_status','receipt_status','terms','expected_payment','notes','receiptFileId','lastModified','deleted'];
   const rows = [headers, ...entries.map(e => [
     e.id||'', e.date||'', e.client||'', e.desc||'',
-    e.work_type||'', e.amount||'', e.includes_vat?'1':'',
+    e.work_type||'', e.amount||'', e.vat_exempt?'1':'',
     e.pay_status||'', e.invoice_status||'', e.receipt_status||'',
     e.terms||'', e.expected_payment||'', e.notes||'', e.receiptFileId||'',
     e.lastModified||Date.now(), e.deleted?'1':''
@@ -3714,7 +3799,7 @@ async function gPullAll() {
         entries = rows.map(r => ({
           id: parseInt(r[0])||Date.now(), date: r[1]||'', client: r[2]||'',
           desc: r[3]||'', work_type: r[4]||'', amount: parseFloat(r[5])||0,
-          includes_vat: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
+          vat_exempt: r[6]==='1', pay_status: r[7]||'', invoice_status: r[8]||'',
           receipt_status: r[9]||'', terms: r[10]||'', expected_payment: r[11]||'',
           notes: r[12]||'', receiptFileId: r[13]||'', receiptFile: null,
           month: r[1]?r[1].slice(0,7):''
