@@ -1481,48 +1481,71 @@ async function runAIInsight(){
 
   const now=new Date();
   const yr=String(now.getFullYear());
+  const prevYr=String(now.getFullYear()-1);
   const active=entries.filter(e=>!e.deleted);
-  const totalIncome=active.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
-  const totalUnpaid=active.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+(e.amount||0),0);
-  const thisYearIncome=active.filter(e=>e.month?.startsWith(yr)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+
+  // calculate insights
+  const insights=[];
+
+  // 1. debt age warning
+  const oldDebt=active.filter(e=>e.pay_status==='טרם שולם'&&e.date&&(now-new Date(e.date))>60*24*60*60*1000);
+  if(oldDebt.length>0){
+    const total=oldDebt.reduce((s,e)=>s+(e.amount||0),0);
+    insights.push(`⚠️ יש לך ${oldDebt.length} עסקאות שלא שולמו מעל 60 יום (${fmt(total)}) — שווה לעקוב אחריהן`);
+  }
+
+  // 2. client concentration risk
   const clientMap={};
   active.filter(e=>e.client&&e.pay_status==='שולם').forEach(e=>{clientMap[e.client]=(clientMap[e.client]||0)+(e.amount||0);});
-  const topClients=Object.entries(clientMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([c,v])=>`${c}: ₪${v.toLocaleString()}`).join(', ');
-  const monthMap={};
-  active.forEach(e=>{if(e.month&&e.pay_status==='שולם')monthMap[e.month]=(monthMap[e.month]||0)+(e.amount||0);});
-  const recentMonths=Object.entries(monthMap).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6).map(([m,v])=>`${m}: ₪${v.toLocaleString()}`).join(', ');
-  const longDebt=active.filter(e=>e.pay_status==='טרם שולם'&&e.date&&(new Date()-new Date(e.date))>60*24*60*60*1000);
-
-  const prompt=`אתה יועץ פיננסי לעצמאים בישראל. נתח את הנתונים הבאים של עוסק מורשה ותן 4-5 תובנות אסטרטגיות קצרות בעברית (כל תובנה שורה אחת עם אימוג'י):
-
-סה"כ הכנסות ששולמו: ₪${totalIncome.toLocaleString()}
-הכנסות ${yr}: ₪${thisYearIncome.toLocaleString()}
-חוב פתוח: ₪${totalUnpaid.toLocaleString()} (${active.filter(e=>e.pay_status==='טרם שולם').length} עסקאות)
-חוב ישן מעל 60 יום: ${longDebt.length} עסקאות
-לקוחות מובילים: ${topClients}
-הכנסות 6 חודשים אחרונים: ${recentMonths}
-
-תן תובנות פרקטיות, ישירות, ממוקדות בשליטה על תזרים מזומנים ובניית הכנסה יציבה. אל תכתוב כותרת.`;
-
-  try {
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:600,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    const data=await resp.json();
-    const text=data.content?.[0]?.text||'לא ניתן לקבל ניתוח';
-    content.innerHTML=text.split('\n').filter(l=>l.trim()).map(l=>`<div style="margin-bottom:6px">${l}</div>`).join('');
-  } catch(e) {
-    content.innerHTML='<span style="color:var(--unpaid)">שגיאה בטעינת ניתוח</span>';
+  const totalPaid=active.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+  const topClient=Object.entries(clientMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topClient&&totalPaid>0){
+    const pct=Math.round(topClient[1]/totalPaid*100);
+    if(pct>40) insights.push(`🔴 ${topClient[0]} מהווה ${pct}% מכלל הכנסותיך — סיכון ריכוז גבוה`);
+    else if(pct>25) insights.push(`🟡 ${topClient[0]} הוא הלקוח הגדול שלך (${pct}% מההכנסות) — שמור על פיזור`);
+    else insights.push(`✅ פיזור לקוחות טוב — הלקוח הגדול (${topClient[0]}) מהווה רק ${pct}% מההכנסות`);
   }
+
+  // 3. year over year trend
+  const thisYr=active.filter(e=>e.month?.startsWith(yr)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+  const lastYr=active.filter(e=>e.month?.startsWith(prevYr)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+  if(lastYr>0&&thisYr>0){
+    const delta=Math.round((thisYr-lastYr)/lastYr*100);
+    if(delta>0) insights.push(`📈 הכנסות ${yr} גבוהות ב-${delta}% לעומת ${prevYr} — כיוון טוב`);
+    else insights.push(`📉 הכנסות ${yr} נמוכות ב-${Math.abs(delta)}% לעומת ${prevYr} — שים לב למגמה`);
+  }
+
+  // 4. invoice/receipt missing
+  const noInv=active.filter(e=>e.pay_status==='שולם'&&e.invoice_status!=='נשלחה חשבונית').length;
+  const noRec=active.filter(e=>e.pay_status==='שולם'&&e.receipt_status==='טרם יצאה קבלה').length;
+  if(noInv>0||noRec>0) insights.push(`📋 ${noInv} חשבוניות ו-${noRec} קבלות חסרות לעסקאות ששולמו — עדכן לפני הגשה לרו"ח`);
+
+  // 5. VAT/tax reminder
+  const curMonthNum=now.getMonth()+1;
+  const periodEndMonth=curMonthNum%2===0?curMonthNum:curMonthNum+1;
+  const mNames=['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const vatEntries=active.filter(e=>!e.vat_exempt&&[`${yr}-${String(periodEndMonth-1).padStart(2,'0')}`,`${yr}-${String(periodEndMonth).padStart(2,'0')}`].includes(e.month));
+  const vatDue=Math.round(vatEntries.reduce((s,e)=>s+(e.amount||0),0)*0.18);
+  if(vatDue>0) insights.push(`💰 מע"מ צפוי לסבב ${mNames[periodEndMonth]}: ${fmt(vatDue)} — הפרש כסף בצד`);
+
+  // 6. avg deal trend (last 3 months vs prev 3)
+  const months=Object.keys(active.reduce((m,e)=>{if(e.month)m[e.month]=1;return m;},{})).sort().slice(-6);
+  if(months.length>=6){
+    const recent3=months.slice(-3);
+    const prev3=months.slice(-6,-3);
+    const r3avg=active.filter(e=>recent3.includes(e.month)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0)/3;
+    const p3avg=active.filter(e=>prev3.includes(e.month)&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0)/3;
+    if(p3avg>0){
+      const d=Math.round((r3avg-p3avg)/p3avg*100);
+      if(d>10) insights.push(`🚀 ממוצע 3 חודשים אחרונים גבוה ב-${d}% לעומת 3 החודשים הקודמים`);
+      else if(d<-10) insights.push(`⬇️ ממוצע 3 חודשים אחרונים נמוך ב-${Math.abs(d)}% — בדוק מה השתנה`);
+    }
+  }
+
+  if(insights.length===0) insights.push('📊 אין מספיק נתונים לניתוח — המשך להוסיף עסקאות');
+
+  await new Promise(r=>setTimeout(r,400)); // slight delay for UX
+  content.innerHTML=insights.map(l=>`<div style="margin-bottom:8px;line-height:1.5">${l}</div>`).join('');
   if(btn)btn.disabled=false;
 }
 
@@ -1631,9 +1654,12 @@ function getFiltered(){
 function renderTable(){
   let filtered=getFiltered();
   filtered.sort((a,b)=>{
+    if(sortCol==='date'){
+      const da=a.date||'', db=b.date||'';
+      return sortDir===1 ? da.localeCompare(db) : db.localeCompare(da);
+    }
     let va=a[sortCol]||'',vb=b[sortCol]||'';
     if(sortCol==='amount'){va=getNet(a);vb=getNet(b);}
-    // sortDir -1 = descending (newest/largest first), 1 = ascending
     if(va<vb)return sortDir;if(va>vb)return-sortDir;return 0;
   });
   const debt=filtered.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
