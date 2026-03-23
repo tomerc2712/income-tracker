@@ -1752,6 +1752,7 @@ function inlineEdit(id,field,td){
     } else {
       if(v)e[field]=v;
     }
+    e.lastModified=Date.now();
     save();renderTable();
   };
   inp.addEventListener('blur',finish);
@@ -2192,6 +2193,7 @@ function saveEdit(){
     receipt_status:document.getElementById('e-receipt').value,
     notes:document.getElementById('e-notes').value.trim(),
     receiptFile:editFile||entries[idx].receiptFile||null,
+    lastModified:Date.now(),
   };
   save();closeModal('edit-modal');renderAll();
 }
