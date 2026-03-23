@@ -356,7 +356,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen">
+<div id="login-screen" style="display:none">
   <canvas id="login-canvas"></canvas>
   <div class="login-card">
     <div class="login-greeting" id="login-greeting"></div>
@@ -3808,8 +3808,9 @@ let gTokenClient = null;
 
 function gInit() {
   const savedUser = localStorage.getItem('g_user');
+  const tokenExpiry = parseInt(localStorage.getItem('g_token_expiry')||'0');
+  const tokenStillValid = gToken && tokenExpiry > Date.now();
 
-  // init token client first
   if (window.google) {
     gTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: G_CLIENT_ID,
@@ -3817,12 +3818,13 @@ function gInit() {
       prompt: '',
       callback: async (resp) => {
         if (resp.error) {
-          // silent refresh failed — show login screen
           initLoginScreen();
           return;
         }
         gToken = resp.access_token;
+        // token valid for 55 minutes
         localStorage.setItem('g_token', gToken);
+        localStorage.setItem('g_token_expiry', String(Date.now() + 55*60*1000));
         if (!gUser) {
           const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: 'Bearer ' + gToken }
@@ -3836,12 +3838,18 @@ function gInit() {
       }
     });
 
-    if (savedUser) {
-      // returning user — try silent refresh
+    if (savedUser && tokenExpiry > Date.now()) {
+      // token still valid — skip login screen
+      gUser = JSON.parse(savedUser);
+      gToken = localStorage.getItem('g_token');
+      showSignedIn();
+      gSyncOnLogin();
+    } else if (savedUser) {
+      // user known but token expired — silent refresh
       gUser = JSON.parse(savedUser);
       gTokenClient.requestAccessToken({ prompt: '' });
     } else {
-      // first time — show login screen
+      // first time
       initLoginScreen();
     }
   } else {
@@ -4247,24 +4255,25 @@ foaLoad();
 load();
 // ── LOGIN SCREEN ──────────────────────────────────────────
 function initLoginScreen(){
-  const h=new Date().getHours();
-  const greeting=h<5?'לילה טוב':h<12?'בוקר טוב':h<17?'צהריים טובים':h<21?'ערב טוב':'לילה טוב';
-  const el=document.getElementById('login-greeting');
-  if(el)el.textContent=greeting;
-
-  // color scheme by time: morning=yellow, noon=green, evening=blue, night=purple
-  const colors=h<5
-    ?{bg:'#080010',wave:'138,92,246',card:'rgba(20,5,40,0.85)',border:'rgba(138,92,246,0.25)',glow:'rgba(138,92,246,0.1)',btn:'rgba(138,92,246,0.15)',btnBorder:'rgba(138,92,246,0.5)',greetColor:'rgba(167,139,250,0.8)'}
-    :h<12
-    ?{bg:'#0f0e00',wave:'250,204,21',card:'rgba(30,28,0,0.85)',border:'rgba(250,204,21,0.25)',glow:'rgba(250,204,21,0.08)',btn:'rgba(250,204,21,0.12)',btnBorder:'rgba(250,204,21,0.45)',greetColor:'rgba(253,224,71,0.85)'}
-    :h<17
-    ?{bg:'#030f07',wave:'52,211,153',card:'rgba(5,25,12,0.85)',border:'rgba(52,211,153,0.25)',glow:'rgba(52,211,153,0.1)',btn:'rgba(52,211,153,0.12)',btnBorder:'rgba(52,211,153,0.45)',greetColor:'rgba(52,211,153,0.8)'}
-    :h<21
-    ?{bg:'#000d1a',wave:'96,165,250',card:'rgba(0,15,35,0.85)',border:'rgba(96,165,250,0.25)',glow:'rgba(96,165,250,0.1)',btn:'rgba(96,165,250,0.12)',btnBorder:'rgba(96,165,250,0.45)',greetColor:'rgba(147,197,253,0.85)'}
-    :{bg:'#080010',wave:'138,92,246',card:'rgba(20,5,40,0.85)',border:'rgba(138,92,246,0.25)',glow:'rgba(138,92,246,0.1)',btn:'rgba(138,92,246,0.15)',btnBorder:'rgba(138,92,246,0.5)',greetColor:'rgba(167,139,250,0.8)'};
-
-  // apply colors dynamically
   const ls=document.getElementById('login-screen');
+  if(ls) ls.style.display='flex';
+
+  const h=new Date().getHours();
+  const greeting=h<5?'לילה טוב ✨':h<12?'בוקר טוב ☀️':h<17?'צהריים טובים 🌿':h<21?'ערב טוב 🌙':'לילה טוב ✨';
+  const el=document.getElementById('login-greeting');
+  if(el){ el.textContent=greeting; el.style.opacity='1'; el.style.animation='none'; }
+
+  // color scheme by time
+  const colors=h<5
+    ?{bg:'#08000f',wave:'138,92,246',card:'rgba(20,5,40,0.88)',border:'rgba(138,92,246,0.3)',glow:'rgba(138,92,246,0.12)',btn:'rgba(138,92,246,0.15)',btnBorder:'rgba(138,92,246,0.5)',greetColor:'rgba(167,139,250,0.9)'}
+    :h<12
+    ?{bg:'#0f0d00',wave:'250,204,21',card:'rgba(28,25,0,0.88)',border:'rgba(250,204,21,0.3)',glow:'rgba(250,204,21,0.1)',btn:'rgba(250,204,21,0.12)',btnBorder:'rgba(250,204,21,0.5)',greetColor:'rgba(253,224,71,0.9)'}
+    :h<17
+    ?{bg:'#030f07',wave:'52,211,153',card:'rgba(5,25,12,0.88)',border:'rgba(52,211,153,0.3)',glow:'rgba(52,211,153,0.12)',btn:'rgba(52,211,153,0.12)',btnBorder:'rgba(52,211,153,0.5)',greetColor:'rgba(52,211,153,0.9)'}
+    :h<21
+    ?{bg:'#00091a',wave:'96,165,250',card:'rgba(0,12,35,0.88)',border:'rgba(96,165,250,0.3)',glow:'rgba(96,165,250,0.12)',btn:'rgba(96,165,250,0.12)',btnBorder:'rgba(96,165,250,0.5)',greetColor:'rgba(147,197,253,0.9)'}
+    :{bg:'#08000f',wave:'138,92,246',card:'rgba(20,5,40,0.88)',border:'rgba(138,92,246,0.3)',glow:'rgba(138,92,246,0.12)',btn:'rgba(138,92,246,0.15)',btnBorder:'rgba(138,92,246,0.5)',greetColor:'rgba(167,139,250,0.9)'};
+
   if(ls) ls.style.background=colors.bg;
   const card=document.querySelector('.login-card');
   if(card){
@@ -4280,6 +4289,7 @@ function initLoginScreen(){
     btn.style.borderColor=colors.btnBorder;
   }
 
+  // canvas waves
   const canvas=document.getElementById('login-canvas');
   if(!canvas)return;
   const ctx2=canvas.getContext('2d');
@@ -4287,8 +4297,8 @@ function initLoginScreen(){
   window.addEventListener('resize',()=>{w=canvas.width=window.innerWidth;h2=canvas.height=window.innerHeight;});
 
   let t=0;
-  const waves=[
-    {amp:30,freq:0.0016,speed:0.008,y:0.72,alpha:0.08},
+  const waveList=[
+    {amp:30,freq:0.0016,speed:0.008,y:0.72,alpha:0.09},
     {amp:22,freq:0.0022,speed:0.013,y:0.78,alpha:0.07},
     {amp:16,freq:0.003, speed:0.02, y:0.83,alpha:0.05},
   ];
@@ -4297,14 +4307,13 @@ function initLoginScreen(){
     ctx2.clearRect(0,0,w,h2);
     ctx2.fillStyle=colors.bg;
     ctx2.fillRect(0,0,w,h2);
-
-    waves.forEach(wave=>{
+    waveList.forEach(wave=>{
       ctx2.beginPath();
       ctx2.moveTo(0,h2);
       for(let x=0;x<=w;x+=3){
         const y=h2*wave.y
-          + Math.sin(x*wave.freq + t*wave.speed)*wave.amp
-          + Math.sin(x*wave.freq*1.6 + t*wave.speed*1.3)*wave.amp*0.35;
+          +Math.sin(x*wave.freq+t*wave.speed)*wave.amp
+          +Math.sin(x*wave.freq*1.6+t*wave.speed*1.3)*wave.amp*0.35;
         ctx2.lineTo(x,y);
       }
       ctx2.lineTo(w,h2);ctx2.closePath();
@@ -4314,7 +4323,6 @@ function initLoginScreen(){
       ctx2.fillStyle=grad;
       ctx2.fill();
     });
-
     t++;
     requestAnimationFrame(draw);
   }
