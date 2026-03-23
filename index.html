@@ -588,6 +588,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
           <div style="display:flex;align-items:center;gap:10px">
             <div style="font-size:18px;font-weight:700" id="client-detail-name"></div>
             <button onclick="renameClient()" style="padding:3px 10px;background:var(--accent-bg);border:0.5px solid var(--accent);border-radius:6px;color:var(--accent);font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">✏ שנה שם</button>
+            <button onclick="openClientReminder()" style="padding:3px 10px;background:rgba(255,180,0,0.1);border:0.5px solid var(--warn);border-radius:6px;color:var(--warn);font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">📧 שלח תזכורת</button>
           </div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px" id="client-detail-sub"></div>
         </div>
@@ -1034,6 +1035,18 @@ body.mode-light .toggle-knob{right:auto;left:2px}
     </div>
     <div id="foa-export-preview"></div>
     <button class="btn-primary" onclick="foaDoExport()" style="background:#4f8cff;margin-top:12px">ייצא לטבלת הכנסות ✓</button>
+  </div>
+</div>
+
+<!-- REMINDER MODAL -->
+<div class="modal-overlay" id="reminder-modal">
+  <div class="modal">
+    <div class="modal-title">📧 שליחת תזכורת תשלום <button class="modal-close" onclick="closeModal('reminder-modal')">×</button></div>
+    <div id="reminder-modal-content" style="font-size:13px;color:var(--muted);margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="sendReminderEmailFromModal()" style="flex:1;padding:10px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">📧 פתח Gmail</button>
+      <button onclick="copyReminderWhatsappFromModal()" style="flex:1;padding:10px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.5);border-radius:8px;color:#25d366;font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">💬 העתק לוואטסאפ</button>
+    </div>
   </div>
 </div>
 
@@ -1698,8 +1711,10 @@ function renderTable(){
     <th class="no-sort">תשלום</th>
     <th class="no-sort">קבלה</th>
     <th class="no-sort">קובץ</th>
+    <th class="no-sort" style="color:var(--warn);font-size:10px">שליחת תזכורת<br>תשלום ללקוח</th>
     <th class="no-sort"></th>
   </tr></thead>`;
+  const now=new Date(); now.setHours(0,0,0,0);
   const body='<tbody>'+filtered.map(e=>{
     const sel=selectedIds.has(e.id)?'selected':'';
     const expDate=e.expected_payment||(e.date&&e.terms?fmtDate(calcExpectedDate(e.date,e.terms)):'');
@@ -1708,6 +1723,14 @@ function renderTable(){
     : e.receiptFileId
       ? `<a href="https://drive.google.com/file/d/${e.receiptFileId}/view" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none">☁️ Drive</a>`
       : `<label style="cursor:pointer;font-size:11px;color:var(--muted)" title="העלה ל-Drive"><input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadEntryFile(${e.id},this)"/>📎</label>`;
+    // reminder buttons — only for overdue unpaid entries
+    let reminderCol='<td></td>';
+    if(e.pay_status==='טרם שולם' && isOverdue(e)){
+      reminderCol=`<td style="white-space:nowrap;text-align:center">
+        <span title="שלח מייל" style="cursor:pointer;font-size:16px" onclick="sendReminderEmail(${e.id})">📧</span>
+        <span title="העתק לוואטסאפ" style="cursor:pointer;font-size:16px;margin-right:4px" onclick="copyReminderWhatsapp(${e.id})">💬</span>
+      </td>`;
+    }
     return`<tr class="${sel}">
       <td class="td-check"><input type="checkbox" ${sel?'checked':''} onchange="toggleSel(${e.id},this)"/></td>
       <td class="td-desc" title="${e.desc}" ondblclick="inlineEdit(${e.id},'desc',this)" style="cursor:text">${e.desc}</td>
@@ -1716,11 +1739,12 @@ function renderTable(){
       <td style="font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer" onclick="openDatePicker(${e.id},this)">${fmtDate(e.date)} ✎</td>
       <td><span class="badge type">${e.work_type||'—'}</span></td>
       <td>${termsBadge(e.id,e.terms)}</td>
-      <td style="font-size:11px;color:var(--muted);white-space:nowrap">${expDate}</td>
+      <td style="font-size:11px;${isOverdue(e)&&e.pay_status==='טרם שולם'?'color:var(--unpaid);font-weight:600':' color:var(--muted)'};white-space:nowrap">${expDate}</td>
       <td>${invBadge(e.id,e.invoice_status)}</td>
       <td>${payBadge(e.id,e.pay_status)}</td>
       <td>${recBadge(e.id,e.receipt_status)}</td>
       <td>${recCol}</td>
+      ${reminderCol}
       <td style="white-space:nowrap"><button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button><button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button></td>
     </tr>`;
   }).join('')+'</tbody>';
@@ -1731,6 +1755,109 @@ function renderTable(){
   updateBulkBar();
 }
 function sortBy(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderTable();}
+
+// ── REMINDER FUNCTIONS ────────────────────────────────────
+function isOverdue(e){
+  if(e.pay_status!=='טרם שולם')return false;
+  const exp=e.expected_payment;
+  if(!exp)return false;
+  // expected_payment can be a date string like "15/03/2026" or month name
+  // try to parse it
+  const parts=exp.split('/');
+  if(parts.length===3){
+    const d=new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    if(!isNaN(d)){const now=new Date();now.setHours(0,0,0,0);return d<now;}
+  }
+  return false;
+}
+
+function getReminderText(e, format='email'){
+  const client=e.client||'לקוח יקר';
+  const desc=e.desc||'';
+  const amount=fmt(e.amount);
+  const exp=e.expected_payment||'';
+  const meta=clientMeta[e.client]||{};
+  if(format==='whatsapp'){
+    return `שלום ${client},\n\nרצינו להזכיר שנשאר חוב פתוח עבור: ${desc}\nסכום: ${amount}\nתאריך תשלום מוסכם: ${exp}\n\nנשמח לסדר את הנושא בהקדם.\n\nתומר כרמלי`;
+  }
+  return {
+    to: meta.email||'',
+    subject: `תזכורת תשלום — ${desc}`,
+    body: `שלום ${client},\n\nאני מצרף תזכורת לגבי חוב פתוח:\n\nפרויקט: ${desc}\nסכום: ${amount}\nתאריך תשלום מוסכם: ${exp}\n\nאשמח לסדר את הנושא בהקדם.\n\nבברכה,\nתומר כרמלי`
+  };
+}
+
+function sendReminderEmail(id){
+  const e=entries.find(x=>x.id===id);if(!e)return;
+  const r=getReminderText(e,'email');
+  const url=`mailto:${r.to}?subject=${encodeURIComponent(r.subject)}&body=${encodeURIComponent(r.body)}`;
+  window.open(url,'_blank');
+}
+
+function copyReminderWhatsapp(id){
+  const e=entries.find(x=>x.id===id);if(!e)return;
+  const text=getReminderText(e,'whatsapp');
+  navigator.clipboard.writeText(text).then(()=>{
+    const t=document.getElementById('success-toast');
+    if(t){
+      t.querySelector('.success-text').textContent='הטקסט הועתק';
+      t.querySelector('.success-sub').textContent='הדבק בוואטסאפ/SMS';
+      t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);
+    }
+  });
+}
+
+let _reminderClientName=null;
+
+function openClientReminder(){
+  const name=currentDetailClient;if(!name)return;
+  _reminderClientName=name;
+  const overdueEntries=entries.filter(e=>e.client===name&&!e.deleted&&isOverdue(e));
+  const allUnpaid=entries.filter(e=>e.client===name&&!e.deleted&&e.pay_status==='טרם שולם');
+  const targetEntries=overdueEntries.length?overdueEntries:allUnpaid;
+  if(!targetEntries.length){alert('אין עסקאות פתוחות לשליחת תזכורת');return;}
+  const meta=clientMeta[name]||{};
+  const totalDebt=targetEntries.reduce((s,e)=>s+(e.amount||0),0);
+  const list=targetEntries.map(e=>`• ${e.desc} — ${fmt(e.amount)}`).join('\n');
+  const content=document.getElementById('reminder-modal-content');
+  content.innerHTML=`
+    <div style="margin-bottom:10px"><strong>${name}</strong>${meta.email?` · ${meta.email}`:''}</div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px;font-size:12px;white-space:pre-line;margin-bottom:10px">${list}</div>
+    <div style="color:var(--unpaid);font-weight:600">סה"כ חוב: ${fmt(totalDebt)}</div>`;
+  document.getElementById('reminder-modal').classList.add('open');
+}
+
+function sendReminderEmailFromModal(){
+  const name=_reminderClientName;if(!name)return;
+  const overdueEntries=entries.filter(e=>e.client===name&&!e.deleted&&isOverdue(e));
+  const allUnpaid=entries.filter(e=>e.client===name&&!e.deleted&&e.pay_status==='טרם שולם');
+  const targetEntries=overdueEntries.length?overdueEntries:allUnpaid;
+  const meta=clientMeta[name]||{};
+  const totalDebt=targetEntries.reduce((s,e)=>s+(e.amount||0),0);
+  const list=targetEntries.map(e=>`• ${e.desc} — ${fmt(e.amount)}`).join('\n');
+  const subject=`תזכורת תשלום — ${name}`;
+  const body=`שלום ${name},\n\nאני מצרף תזכורת לגבי חובות פתוחים:\n\n${list}\n\nסה"כ לתשלום: ${fmt(totalDebt)}\n\nאשמח לסדר את הנושא בהקדם.\n\nבברכה,\nתומר כרמלי`;
+  window.open(`mailto:${meta.email||''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,'_blank');
+}
+
+function copyReminderWhatsappFromModal(){
+  const name=_reminderClientName;if(!name)return;
+  const overdueEntries=entries.filter(e=>e.client===name&&!e.deleted&&isOverdue(e));
+  const allUnpaid=entries.filter(e=>e.client===name&&!e.deleted&&e.pay_status==='טרם שולם');
+  const targetEntries=overdueEntries.length?overdueEntries:allUnpaid;
+  const totalDebt=targetEntries.reduce((s,e)=>s+(e.amount||0),0);
+  const list=targetEntries.map(e=>`• ${e.desc} — ${fmt(e.amount)}`).join('\n');
+  const text=`שלום ${name},\n\nרצינו להזכיר שנשארו חובות פתוחים:\n\n${list}\n\nסה"כ: ${fmt(totalDebt)}\n\nנשמח לסדר בהקדם 🙏\n\nתומר כרמלי`;
+  navigator.clipboard.writeText(text).then(()=>{
+    closeModal('reminder-modal');
+    const t=document.getElementById('success-toast');
+    if(t){
+      t.querySelector('.success-text').textContent='הטקסט הועתק';
+      t.querySelector('.success-sub').textContent='הדבק בוואטסאפ/SMS';
+      t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);
+    }
+  });
+}
 
 // ── SYNC COLORED SELECT ───────────────────────────────────
 function syncSel(sel){sel.dataset.v=sel.value;}
