@@ -1337,7 +1337,7 @@ function dashFilterChanged(){
   const y=document.getElementById('dash-f-year')?.value||'';
   const m=document.getElementById('dash-f-month')?.value||'';
   const lbl=document.getElementById('dash-filter-label');
-  if(!y&&!m){if(lbl)lbl.textContent='';renderMetrics('metrics-dash',entries);return;}
+  if(!y&&!m){if(lbl)lbl.textContent='';renderMetrics('metrics-dash',entries.filter(e=>!e.deleted));if(barInst){barInst.destroy();barInst=null;}renderBarChart();return;}
   const filtered=getDashFiltered();
   const mNames=['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
   let label='מציג: ';
@@ -1346,12 +1346,16 @@ function dashFilterChanged(){
   if(!m&&y)label+=` (כל השנה)`;
   if(lbl)lbl.textContent=label+` · ${filtered.length} עסקאות`;
   renderMetrics('metrics-dash',filtered);
+  if(barInst){barInst.destroy();barInst=null;}
+  renderBarChart();
 }
 function dashResetFilter(){
   const y=document.getElementById('dash-f-year');if(y)y.value='';
   const m=document.getElementById('dash-f-month');if(m)m.value='';
   const lbl=document.getElementById('dash-filter-label');if(lbl)lbl.textContent='';
-  renderMetrics('metrics-dash',entries);
+  renderMetrics('metrics-dash',entries.filter(e=>!e.deleted));
+  if(barInst){barInst.destroy();barInst=null;}
+  renderBarChart();
 }
 
 // ── METRICS ───────────────────────────────────────────────
