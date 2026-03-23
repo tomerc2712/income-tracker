@@ -3977,58 +3977,48 @@ foaLoad();
 load();
 // ── LOGIN SCREEN ──────────────────────────────────────────
 function initLoginScreen(){
-  // greeting
   const h=new Date().getHours();
   const greeting=h<5?'לילה טוב':h<12?'בוקר טוב':h<17?'צהריים טובים':h<21?'ערב טוב':'לילה טוב';
   const el=document.getElementById('login-greeting');
   if(el)el.textContent=greeting;
 
-  // canvas particle animation
   const canvas=document.getElementById('login-canvas');
   if(!canvas)return;
   const ctx2=canvas.getContext('2d');
   let w=canvas.width=window.innerWidth,h2=canvas.height=window.innerHeight;
   window.addEventListener('resize',()=>{w=canvas.width=window.innerWidth;h2=canvas.height=window.innerHeight;});
 
-  const particles=Array.from({length:80},()=>({
-    x:Math.random()*w, y:Math.random()*h2,
-    r:Math.random()*2+0.5,
-    vx:(Math.random()-.5)*0.4, vy:(Math.random()-.5)*0.4,
-    a:Math.random()
-  }));
-
+  let t=0;
   function draw(){
     ctx2.clearRect(0,0,w,h2);
-    // gradient bg
-    const grad=ctx2.createRadialGradient(w/2,h2/2,0,w/2,h2/2,Math.max(w,h2)*0.8);
-    grad.addColorStop(0,'rgba(5,40,20,1)');
-    grad.addColorStop(1,'rgba(2,12,6,1)');
-    ctx2.fillStyle=grad;
+    // dark green bg
+    ctx2.fillStyle='#030f07';
     ctx2.fillRect(0,0,w,h2);
 
-    particles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy;
-      if(p.x<0)p.x=w; if(p.x>w)p.x=0;
-      if(p.y<0)p.y=h2; if(p.y>h2)p.y=0;
+    // draw 4 soft waves
+    const waves=[
+      {amp:38,freq:0.0018,speed:0.012,y:0.55,alpha:0.07},
+      {amp:28,freq:0.0024,speed:0.018,y:0.62,alpha:0.06},
+      {amp:20,freq:0.003,speed:0.025,y:0.68,alpha:0.05},
+      {amp:45,freq:0.0013,speed:0.008,y:0.48,alpha:0.04},
+    ];
+    waves.forEach(wave=>{
       ctx2.beginPath();
-      ctx2.arc(p.x,p.y,p.r,0,Math.PI*2);
-      ctx2.fillStyle=`rgba(52,211,153,${p.a*0.6})`;
+      ctx2.moveTo(0,h2);
+      for(let x=0;x<=w;x+=4){
+        const y=h2*wave.y+Math.sin(x*wave.freq+t*wave.speed)*wave.amp;
+        ctx2.lineTo(x,y);
+      }
+      ctx2.lineTo(w,h2);
+      ctx2.closePath();
+      const grad=ctx2.createLinearGradient(0,h2*wave.y-wave.amp,0,h2);
+      grad.addColorStop(0,`rgba(52,211,153,${wave.alpha})`);
+      grad.addColorStop(1,'rgba(52,211,153,0)');
+      ctx2.fillStyle=grad;
       ctx2.fill();
     });
 
-    // connect nearby particles
-    particles.forEach((p,i)=>{
-      particles.slice(i+1).forEach(q=>{
-        const dx=p.x-q.x,dy=p.y-q.y,dist=Math.sqrt(dx*dx+dy*dy);
-        if(dist<120){
-          ctx2.beginPath();
-          ctx2.moveTo(p.x,p.y); ctx2.lineTo(q.x,q.y);
-          ctx2.strokeStyle=`rgba(52,211,153,${(1-dist/120)*0.15})`;
-          ctx2.lineWidth=0.5;
-          ctx2.stroke();
-        }
-      });
-    });
+    t++;
     requestAnimationFrame(draw);
   }
   draw();
