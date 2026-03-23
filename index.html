@@ -1411,23 +1411,26 @@ function renderSidebar(){
 function renderBarChart(){
   const ctx=document.getElementById('barChart');if(!ctx)return;
   if(barInst){barInst.destroy();barInst=null;}
-  const months=[...new Set(entries.map(e=>e.month).filter(Boolean))].sort().slice(-12);
-  const paid=months.map(m=>entries.filter(e=>e.month===m&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0));
-  const unpaid=months.map(m=>entries.filter(e=>e.month===m&&e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0));
+
+  const filterYear=document.getElementById('dash-f-year')?.value||'';
+  const filterMonth=document.getElementById('dash-f-month')?.value||'';
+
   // PIE
   if(currentChartType==='pie'){
-    const tp=entries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
-    const tu=entries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
+    const data=getDashFiltered();
+    const tp=data.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
+    const tu=data.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
     barInst=new Chart(ctx,{type:'pie',data:{labels:['שולם','טרם שולם'],datasets:[{data:[tp,tu],backgroundColor:['rgba(34,200,122,0.8)','rgba(255,92,92,0.8)'],borderColor:['#22c87a','#ff5c5c'],borderWidth:1}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11,family:'Heebo'},color:'rgba(255,255,255,.6)',padding:10}}}}});
     return;
   }
   // SCATTER
   if(currentChartType==='scatter'){
-    const pts=entries.filter(e=>e.date&&getNet(e)>0).map(e=>({x:new Date(e.date).getTime(),y:getNet(e),label:e.desc}));
-    const upts=entries.filter(e=>e.date&&getNet(e)>0&&e.pay_status==='טרם שולם').map(e=>({x:new Date(e.date).getTime(),y:getNet(e)}));
+    const activeEntries=entries.filter(e=>!e.deleted);
+    const pts=activeEntries.filter(e=>e.date&&getNet(e)>0).map(e=>({x:new Date(e.date).getTime(),y:getNet(e),label:e.desc}));
+    const upts=activeEntries.filter(e=>e.date&&getNet(e)>0&&e.pay_status==='טרם שולם').map(e=>({x:new Date(e.date).getTime(),y:getNet(e)}));
     barInst=new Chart(ctx,{type:'scatter',data:{datasets:[
-      {label:'שולם',data:pts.filter((_,i)=>entries.filter(e=>e.date&&getNet(e)>0)[i]?.pay_status==='שולם'),backgroundColor:'rgba(34,200,122,0.7)',pointRadius:5},
+      {label:'שולם',data:pts.filter((_,i)=>activeEntries.filter(e=>e.date&&getNet(e)>0)[i]?.pay_status==='שולם'),backgroundColor:'rgba(34,200,122,0.7)',pointRadius:5},
       {label:'טרם שולם',data:upts,backgroundColor:'rgba(255,92,92,0.7)',pointRadius:5}
     ]},options:{responsive:true,maintainAspectRatio:false,
       scales:{x:{type:'time',time:{unit:'month',displayFormats:{month:'MMM yy'}},grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'rgba(255,255,255,.3)',font:{size:9,family:'Heebo'}}},
@@ -1435,7 +1438,42 @@ function renderBarChart(){
       plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10,family:'Heebo'},color:'rgba(255,255,255,.5)'}}}}});
     return;
   }
-  // BAR / LINE
+
+  // CHART BY CLIENT — when month+year filter active
+  if(filterYear && filterMonth && (currentChartType==='bar'||currentChartType==='line')){
+    const filtered=getDashFiltered();
+    const clientMap={};
+    filtered.forEach(e=>{
+      if(!e.client)return;
+      if(!clientMap[e.client])clientMap[e.client]={paid:0,unpaid:0};
+      if(e.pay_status==='שולם')clientMap[e.client].paid+=getNet(e);
+      else clientMap[e.client].unpaid+=getNet(e);
+    });
+    const clients=Object.keys(clientMap).sort();
+    barInst=new Chart(ctx,{type:'bar',data:{
+      labels:clients,
+      datasets:[
+        {label:'שולם',data:clients.map(c=>clientMap[c].paid),backgroundColor:'rgba(34,200,122,.75)',borderRadius:4},
+        {label:'טרם שולם',data:clients.map(c=>clientMap[c].unpaid),backgroundColor:'rgba(255,92,92,.65)',borderRadius:4}
+      ]},options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11,family:'Heebo'},color:'rgba(255,255,255,.5)'}}},
+        scales:{x:{grid:{display:false},ticks:{color:'rgba(255,255,255,.3)',font:{size:10,family:'Heebo'}},border:{display:false}},
+          y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'rgba(255,255,255,.3)',font:{size:9,family:'Heebo'},callback:v=>'₪'+v.toLocaleString()},border:{display:false}}}}});
+    return;
+  }
+
+  // BAR / LINE — monthly view
+  let months;
+  if(filterYear){
+    // year filter only — show all months of that year
+    months=[...new Set(entries.filter(e=>!e.deleted&&(e.month||'').startsWith(filterYear)).map(e=>e.month).filter(Boolean))].sort();
+  } else {
+    // default — last 12 months
+    months=[...new Set(entries.filter(e=>!e.deleted).map(e=>e.month).filter(Boolean))].sort().slice(-12);
+  }
+  const activeEntries=entries.filter(e=>!e.deleted);
+  const paid=months.map(m=>activeEntries.filter(e=>e.month===m&&e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0));
+  const unpaid=months.map(m=>activeEntries.filter(e=>e.month===m&&e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0));
   barInst=new Chart(ctx,{type:currentChartType==='line'?'line':'bar',data:{labels:months.map(fmtMonthStr),datasets:[
     {label:'שולם',data:paid,backgroundColor:'rgba(34,200,122,.75)',borderRadius:4},
     {label:'טרם שולם',data:unpaid,backgroundColor:'rgba(255,92,92,.65)',borderRadius:4}
@@ -1446,7 +1484,7 @@ function renderBarChart(){
 
 // ── RECENT TABLE ──────────────────────────────────────────
 function renderRecentTable(){
-  const recent=[...entries].sort((a,b)=>(b.date||'')>=(a.date||'')?1:-1).slice(0,6);
+  const recent=[...entries].filter(e=>!e.deleted).sort((a,b)=>(b.date||'')>=(a.date||'')?1:-1).slice(0,6);
   const el=document.getElementById('dash-recent-tbl');if(!el)return;
   if(!recent.length){el.innerHTML='<tr><td class="empty">אין נתונים</td></tr>';return;}
   el.innerHTML=`<thead><tr><th class="no-sort">תיאור</th><th class="no-sort">סכום</th><th class="no-sort">תאריך</th><th class="no-sort">תשלום</th></tr></thead>
