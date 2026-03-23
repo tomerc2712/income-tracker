@@ -3627,16 +3627,20 @@ let gSyncing = false;
 let gTokenClient = null;
 
 function gInit() {
-  // always show login screen — force fresh token every session
-  initLoginScreen();
-  // init token client for reuse
+  const savedUser = localStorage.getItem('g_user');
+
+  // init token client first
   if (window.google) {
     gTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: G_CLIENT_ID,
       scope: G_SCOPES,
       prompt: '',
       callback: async (resp) => {
-        if (resp.error) { console.error(resp); return; }
+        if (resp.error) {
+          // silent refresh failed — show login screen
+          initLoginScreen();
+          return;
+        }
         gToken = resp.access_token;
         localStorage.setItem('g_token', gToken);
         if (!gUser) {
@@ -3651,6 +3655,15 @@ function gInit() {
         else gSyncOnLogin();
       }
     });
+
+    if (savedUser) {
+      // returning user — try silent refresh
+      gUser = JSON.parse(savedUser);
+      gTokenClient.requestAccessToken({ prompt: '' });
+    } else {
+      // first time — show login screen
+      initLoginScreen();
+    }
   } else {
     setTimeout(gInit, 500);
   }
@@ -3663,7 +3676,9 @@ function gRefreshToken(silent) {
 }
 
 function gSignIn() {
-  if (!gTokenClient) {
+  if (gTokenClient) {
+    gTokenClient.requestAccessToken({ prompt: 'select_account' });
+  } else {
     gTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: G_CLIENT_ID,
       scope: G_SCOPES,
@@ -3680,8 +3695,8 @@ function gSignIn() {
         await gSyncOnLogin();
       }
     });
+    gTokenClient.requestAccessToken({ prompt: 'select_account' });
   }
-  gTokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 function gSignOut() {
