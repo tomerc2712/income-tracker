@@ -339,9 +339,36 @@ body.mode-light .toggle-knob{right:auto;left:2px}
 .chart-type-btn{background:var(--surface2);border:0.5px solid var(--border-strong);border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;color:var(--muted);transition:all .15s;line-height:1;font-family:'Heebo',sans-serif}
 .chart-type-btn:hover{border-color:var(--accent);color:var(--accent)}
 .chart-type-btn.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+
+/* LOGIN SCREEN */
+#login-screen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;background:#030f07}
+#login-screen canvas{position:absolute;inset:0;width:100%;height:100%}
+.login-card{position:relative;z-index:2;background:rgba(5,25,12,0.85);border:1px solid rgba(52,211,153,0.25);border-radius:24px;padding:48px 44px;text-align:center;backdrop-filter:blur(20px);box-shadow:0 0 80px rgba(52,211,153,0.1),0 20px 60px rgba(0,0,0,0.5);min-width:320px;max-width:420px}
+.login-greeting{font-size:13px;color:rgba(52,211,153,0.7);font-weight:500;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;opacity:0;animation:fadeUp .8s ease forwards .3s}
+.login-name{font-size:36px;font-weight:700;color:#fff;margin-bottom:6px;opacity:0;animation:fadeUp .8s ease forwards .6s}
+.login-sub{font-size:13px;color:rgba(255,255,255,0.35);margin-bottom:36px;opacity:0;animation:fadeUp .8s ease forwards .9s}
+.login-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);border-radius:12px;color:#fff;font-size:15px;font-family:'Heebo',sans-serif;font-weight:600;cursor:pointer;transition:all .2s;opacity:0;animation:fadeUp .8s ease forwards 1.1s}
+.login-btn:hover{background:rgba(52,211,153,0.22);border-color:rgba(52,211,153,0.7);box-shadow:0 0 20px rgba(52,211,153,0.2)}
+.login-footer{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,0.2);font-family:'Heebo',sans-serif;z-index:2}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <canvas id="login-canvas"></canvas>
+  <div class="login-card">
+    <div class="login-greeting" id="login-greeting"></div>
+    <div class="login-name">תומר 👋</div>
+    <div class="login-sub">מערכת ניהול הכנסות · עוסק מורשה</div>
+    <button class="login-btn" onclick="gSignIn()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.31z"/></svg>
+      התחבר עם Google
+    </button>
+  </div>
+  <div class="login-footer">מערכת זו נבנתה עבור תומר כרמלי בלבד</div>
+</div>
 
 <!-- SUCCESS TOAST -->
 <div class="success-toast" id="success-toast">
@@ -1480,7 +1507,10 @@ async function runAIInsight(){
   try {
     const resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:600,
@@ -3522,13 +3552,8 @@ let gSyncing = false;
 let gTokenClient = null;
 
 function gInit() {
-  const savedUser = localStorage.getItem('g_user');
-  if (savedUser) {
-    gUser = JSON.parse(savedUser);
-    showSignedIn();
-    // try to get fresh token silently
-    gRefreshToken(true);
-  }
+  // always show login screen — force fresh token every session
+  initLoginScreen();
   // init token client for reuse
   if (window.google) {
     gTokenClient = google.accounts.oauth2.initTokenClient({
@@ -3545,14 +3570,13 @@ function gInit() {
           });
           gUser = await r.json();
           localStorage.setItem('g_user', JSON.stringify(gUser));
-          showSignedIn();
         }
+        showSignedIn();
         if (window._gTokenCallback) { window._gTokenCallback(); window._gTokenCallback = null; }
         else gSyncOnLogin();
       }
     });
   } else {
-    // google not loaded yet, retry
     setTimeout(gInit, 500);
   }
 }
@@ -3595,6 +3619,9 @@ function gSignOut() {
 }
 
 function showSignedIn() {
+  // hide login screen with fade
+  const ls = document.getElementById('login-screen');
+  if (ls) { ls.style.transition='opacity .6s'; ls.style.opacity='0'; setTimeout(()=>ls.style.display='none', 600); }
   document.getElementById('g-signed-out').style.display = 'none';
   const si = document.getElementById('g-signed-in');
   si.style.display = 'flex';
@@ -3948,6 +3975,65 @@ const fr2=document.getElementById('f-receipt');if(fr2){fr2.value='טרם יצא�
 alinLoad();
 foaLoad();
 load();
+// ── LOGIN SCREEN ──────────────────────────────────────────
+function initLoginScreen(){
+  // greeting
+  const h=new Date().getHours();
+  const greeting=h<5?'לילה טוב':h<12?'בוקר טוב':h<17?'צהריים טובים':h<21?'ערב טוב':'לילה טוב';
+  const el=document.getElementById('login-greeting');
+  if(el)el.textContent=greeting;
+
+  // canvas particle animation
+  const canvas=document.getElementById('login-canvas');
+  if(!canvas)return;
+  const ctx2=canvas.getContext('2d');
+  let w=canvas.width=window.innerWidth,h2=canvas.height=window.innerHeight;
+  window.addEventListener('resize',()=>{w=canvas.width=window.innerWidth;h2=canvas.height=window.innerHeight;});
+
+  const particles=Array.from({length:80},()=>({
+    x:Math.random()*w, y:Math.random()*h2,
+    r:Math.random()*2+0.5,
+    vx:(Math.random()-.5)*0.4, vy:(Math.random()-.5)*0.4,
+    a:Math.random()
+  }));
+
+  function draw(){
+    ctx2.clearRect(0,0,w,h2);
+    // gradient bg
+    const grad=ctx2.createRadialGradient(w/2,h2/2,0,w/2,h2/2,Math.max(w,h2)*0.8);
+    grad.addColorStop(0,'rgba(5,40,20,1)');
+    grad.addColorStop(1,'rgba(2,12,6,1)');
+    ctx2.fillStyle=grad;
+    ctx2.fillRect(0,0,w,h2);
+
+    particles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=w; if(p.x>w)p.x=0;
+      if(p.y<0)p.y=h2; if(p.y>h2)p.y=0;
+      ctx2.beginPath();
+      ctx2.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx2.fillStyle=`rgba(52,211,153,${p.a*0.6})`;
+      ctx2.fill();
+    });
+
+    // connect nearby particles
+    particles.forEach((p,i)=>{
+      particles.slice(i+1).forEach(q=>{
+        const dx=p.x-q.x,dy=p.y-q.y,dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<120){
+          ctx2.beginPath();
+          ctx2.moveTo(p.x,p.y); ctx2.lineTo(q.x,q.y);
+          ctx2.strokeStyle=`rgba(52,211,153,${(1-dist/120)*0.15})`;
+          ctx2.lineWidth=0.5;
+          ctx2.stroke();
+        }
+      });
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
 gInit();
 </script>
 </body>
