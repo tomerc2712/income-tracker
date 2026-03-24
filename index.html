@@ -779,6 +779,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <option value="שולם">שולם ✅</option>
         <option value="לא שולם">טרם שולם ❌</option>
       </select>
+      <button onclick="alinResetFilters()" style="padding:5px 12px;background:none;border:0.5px solid var(--border-strong);border-radius:6px;color:var(--muted);font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap">✕ איפוס</button>
 
     </div>
     <div class="bulk-bar" id="alin-bulk-bar">
@@ -2843,6 +2844,14 @@ function alinInlineSave(){
   alinProducts.unshift({id:newId,date,show,type,ep,scope,rate,status,pay,inv_status,notes});
   alinSave();alinRenderProducts();alinRenderMetrics();alinRenderSidebar();
 }
+function alinResetFilters(){
+  ['alin-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['alin-f-show','alin-f-type','alin-f-status','alin-f-month-from','alin-f-month-to','alin-f-pay'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  alinRenderProducts();
+}
+
 function alinRenderProducts(){
   const s=(document.getElementById('alin-search')?.value||'').toLowerCase();
   const fS=document.getElementById('alin-f-show')?.value||'';
