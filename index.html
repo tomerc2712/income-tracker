@@ -2857,9 +2857,15 @@ function alinRenderProducts(){
   if(!filtered.length){el.innerHTML='<tr><td colspan="12" class="empty">אין תוצרים</td></tr>';document.getElementById('alin-products-summary').textContent='';return;}
   el.innerHTML=`<thead><tr>
     <th class="no-sort td-check"><input type="checkbox" onchange="alinSelectAll(this)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);opacity:.7"></th>
-    <th>תאריך</th><th>תוכנית</th><th>סוג עבודה</th><th>פרק</th><th>היקף</th><th>תעריף</th><th>סטטוס עריכה</th><th>סטטוס חשבונית</th><th>סטטוס תשלום</th><th class="no-sort">הערות</th><th class="no-sort"></th>
+    <th>תאריך</th><th>תוכנית</th><th>סוג עבודה</th><th>פרק</th><th>היקף</th><th>תעריף</th><th>סטטוס עריכה</th><th>סטטוס חשבונית</th><th>סטטוס תשלום</th><th class="no-sort">הערות</th><th class="no-sort">קובץ</th><th class="no-sort"></th>
   </tr></thead>
-  <tbody>${filtered.map(p=>`<tr class="${selectedAlinIds.has(p.id)?'selected':''}">
+  <tbody>${filtered.map(p=>{
+    const fileCol=p.fileId
+      ?`<a href="https://drive.google.com/file/d/${p.fileId}/view" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none" title="צפה בקובץ">☁️</a>`
+      :p.fileData
+      ?`<span style="cursor:pointer;font-size:13px" onclick="alinViewFile(${p.id})" title="צפה בקובץ">📄</span>`
+      :`<label style="cursor:pointer;font-size:13px;color:var(--muted)" title="העלה חשבונית"><input type="file" accept="image/*,application/pdf" style="display:none" onchange="alinUploadFile(${p.id},this)"/>📎</label>`;
+    return`<tr class="${selectedAlinIds.has(p.id)?'selected':''}">
     <td class="td-check"><input type="checkbox" class="alin-row-check" ${selectedAlinIds.has(p.id)?'checked':''} onchange="alinToggleSel(${p.id},this)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);opacity:.7"></td>
     <td style="font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer" onclick="alinOpenDP(${p.id})" title="לחץ לעריכת תאריך">${alinFmtDate(p.date)||'Invalid Date'} ✎</td>
     <td onclick="alinInlineShow(${p.id},this,event)" style="cursor:pointer" title="לחץ לשינוי תוכנית"><span class="badge" style="background:rgba(255,77,166,0.12);color:#ff85c2;border-color:rgba(255,77,166,0.25);font-size:10px">${p.show||'—'}</span></td>
@@ -2871,11 +2877,12 @@ function alinRenderProducts(){
     <td onclick="event.stopPropagation()">${alinInvBadge(p.id,p.inv_status)}</td>
     <td onclick="event.stopPropagation()">${alinPayStatusBadge(p.id,p.pay_status)}</td>
     <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="alinInlineEdit(${p.id},'notes',this)" title="לחץ לעריכת הערה">${p.notes||'—'}</td>
+    <td onclick="event.stopPropagation()">${fileCol}</td>
     <td style="white-space:nowrap">
       <button class="btn-act" onclick="alinOpenEdit(${p.id})">✏️</button>
       <button class="btn-act" onclick="alinDel(${p.id})">🗑️</button>
     </td>
-  </tr>`).join('')}</tbody>`;
+  </tr>`;}).join('')}</tbody>`;
   const total=filtered.reduce((s,p)=>s+(p.rate||0),0);
   document.getElementById('alin-products-summary').textContent=`${filtered.length} תוצרים · סה"כ: ${alinFmt(total)}`;
 }
@@ -3167,6 +3174,42 @@ function alinSaveEdit(){
   alinSave();closeModal('alin-edit-modal');alinRenderAll();
 }
 function alinDel(id){if(!confirm('למחוק?'))return;alinProducts=alinProducts.filter(p=>p.id!==id);alinSave();alinRenderAll();}
+
+function alinViewFile(id){
+  const p=alinProducts.find(x=>x.id===id);if(!p||!p.fileData)return;
+  const cont=document.getElementById('receipt-content');
+  const modal=document.getElementById('receipt-modal');
+  if(!cont||!modal)return;
+  if(p.fileData.type==='application/pdf')
+    cont.innerHTML=`<iframe src="${p.fileData.dataUrl}" style="width:100%;height:500px;border:none;border-radius:8px"></iframe>`;
+  else
+    cont.innerHTML=`<img src="${p.fileData.dataUrl}" style="max-width:100%;border-radius:8px"/>`;
+  modal.classList.add('open');
+}
+
+async function alinUploadFile(id, input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const idx=alinProducts.findIndex(p=>p.id===id);
+  if(idx<0)return;
+  if(gToken){
+    setSyncStatus('⏳ מעלה קובץ...');
+    const result=await gUploadFileToDrive(file, 'alin_'+id);
+    if(result&&result.id){
+      alinProducts[idx].fileId=result.id;
+      alinProducts[idx].fileLink=result.webViewLink;
+      alinSave();alinRenderProducts();
+    }
+  } else {
+    // fallback: save locally as base64
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      alinProducts[idx].fileData={name:file.name,type:file.type,dataUrl:ev.target.result};
+      alinSave();alinRenderProducts();
+    };
+    reader.readAsDataURL(file);
+  }
+}
 
 function alinOpenExport(){
   alinPopFilters();
