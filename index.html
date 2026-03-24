@@ -2848,7 +2848,7 @@ function alinRenderProducts(){
     if(s&&!(p.show||'').includes(s)&&!(p.type||'').includes(s)&&!(p.notes||'').includes(s))return false;
     if(fS&&p.show!==fS)return false;
     if(fT&&p.type!==fT)return false;
-    if(fSt&&p.status!==fSt)return false;
+    if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
     if(fM&&alinGetMonth(p.date)!==fM)return false;
     if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
     if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
@@ -3188,7 +3188,7 @@ function alinExportPDF(){
     if(fM&&alinGetMonth(p.date)!==fM)return false;
     if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
     if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
-    if(fSt&&p.status!==fSt)return false;
+    if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
     return true;
   }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
@@ -3790,7 +3790,7 @@ function foaRenderProducts(){
   const filtered=foaProducts.filter(p=>{
     if(s&&!(p.service||'').includes(s)&&!(p.desc||'').includes(s)&&!(p.notes||'').includes(s)&&!(p.cycle||'').includes(s))return false;
     if(fSvc&&p.service!==fSvc)return false;
-    if(fSt&&p.status!==fSt)return false;
+    if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
     if(fM&&foaGetMonth(p.date)!==fM)return false;
     return true;
   }).sort((a,b)=>{const da=a.date||'',db=b.date||'';if(da&&db)return db>da?1:db<da?-1:0;if(da)return -1;if(db)return 1;return(b.id||0)-(a.id||0);});
