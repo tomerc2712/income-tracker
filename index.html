@@ -1540,30 +1540,40 @@ function renderSidebar(){
       <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
     </div>
     ${(()=>{
-      const gross=entries.filter(e=>!e.deleted&&e.month===cm&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
-      if(!gross) return '';
+      // cashflow month — use selected sidebar month or current
+      const cfMonth=window._cfMonth||cm;
+      const gross=entries.filter(e=>!e.deleted&&e.month===cfMonth&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+      // build available months list
+      const availMonths=[...new Set(entries.filter(e=>!e.deleted&&e.pay_status==='שולם').map(e=>e.month).filter(Boolean))].sort().reverse();
+      const monthOpts=availMonths.map(m=>`<option value="${m}" ${m===cfMonth?'selected':''}>${fmtMonthStr(m)}</option>`).join('');
+      if(!gross&&!availMonths.length) return '';
       const vacation=Math.round(gross*0.05);
       const emergency=Math.round(gross*0.05);
       const car=500;
       const savings=Math.round(gross*0.05);
-      const stocks=Math.round(gross*0.05);
+      const stocks=Math.round(gross*0.10);
       const tax=Math.round(gross*0.05);
       const totalOut=vacation+emergency+car+savings+stocks+tax;
       const netLeft=gross-totalOut;
-      const pct=(n,t)=>Math.round(n/t*100);
+      const pct=(n,t)=>t>0?Math.round(n/t*100):0;
       const items=[
-        {label:'🏖️ חיסכון חופשה',val:vacation,color:'#38bdf8'},
-        {label:'🆘 חיסכון חירום',val:emergency,color:'#fb923c'},
-        {label:'🚗 חיסכון רכב',val:car,color:'#a78bfa'},
-        {label:'🏦 חיסכון כללי',val:savings,color:'#34d399'},
-        {label:'📈 מניות',val:stocks,color:'#fbbf24'},
+        {label:'🏖️ חיסכון חופשה (5%)',val:vacation,color:'#38bdf8'},
+        {label:'🆘 חיסכון חירום (5%)',val:emergency,color:'#fb923c'},
+        {label:'🚗 רכב (קבוע)',val:car,color:'#a78bfa'},
+        {label:'🏦 חיסכון כללי (5%)',val:savings,color:'#34d399'},
+        {label:'📈 מניות (10%)',val:stocks,color:'#fbbf24'},
         {label:'🧾 מס הכנסה (5%)',val:tax,color:'#f87171'},
       ];
       return `
     <div class="sidebar-card" style="border-color:rgba(52,211,153,0.2)">
-      <div class="sidebar-title" style="color:#34d399">💵 חלוקת הכנסה — ${fmtMonthStr(cm)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="sidebar-title" style="color:#34d399;margin-bottom:0">💵 חלוקת הכנסה</div>
+        <select onchange="window._cfMonth=this.value;renderSidebar()" style="background:var(--surface2);border:0.5px solid var(--border-strong);border-radius:6px;color:var(--muted);font-size:10px;padding:2px 6px;font-family:'Heebo',sans-serif;cursor:pointer">
+          ${monthOpts}
+        </select>
+      </div>
       <div style="font-size:11px;color:var(--hint);margin-bottom:10px">ברוטו: <strong style="color:var(--text)">${fmt(gross)}</strong></div>
-      ${items.map(i=>`
+      ${gross>0?items.map(i=>`
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
             <span style="color:var(--muted)">${i.label}</span>
@@ -1572,12 +1582,12 @@ function renderSidebar(){
           <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px">
             <div style="height:3px;width:${Math.min(pct(i.val,gross),100)}%;background:${i.color};border-radius:2px;opacity:0.7"></div>
           </div>
-        </div>`).join('')}
-      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+        </div>`).join(''):'<div style="font-size:12px;color:var(--hint)">אין הכנסות ששולמו בחודש זה</div>'}
+      ${gross>0?`<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;color:var(--muted)">🏠 נטו לחיות</span>
         <span style="font-size:16px;font-weight:700;color:#34d399">${fmt(netLeft)}</span>
       </div>
-      <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>
+      <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>`:''}
     </div>`;
     })()}`;
 }
