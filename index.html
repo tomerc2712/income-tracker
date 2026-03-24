@@ -928,6 +928,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
       </div>
     </div>
     <div style="display:flex;gap:8px">
+      <button onclick="foaExportPDF()" style="padding:7px 14px;background:linear-gradient(135deg,rgba(79,140,255,0.15),rgba(108,123,255,0.15));border:0.5px solid rgba(79,140,255,0.5);border-radius:8px;color:#6cb4ff;font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap">📄 הפק דוח PDF</button>
       <button onclick="foaOpenExport()" style="padding:7px 14px;background:rgba(79,140,255,0.12);border:0.5px solid rgba(79,140,255,0.4);border-radius:8px;color:#6cb4ff;font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap">📤 ייצא לטבלת הכנסות</button>
       <button onclick="foaOpenAdd()" style="padding:7px 14px;background:none;border:0.5px solid var(--border-strong);border-radius:8px;color:var(--muted);font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer">+ הוסף תוצר</button>
     </div>
@@ -974,7 +975,15 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <option value="בוצע">בוצע</option>
         <option value="טרם בוצע">טרם בוצע</option>
       </select>
-      <select class="fsel" id="foa-f-month" onchange="foaRenderProducts()"><option value="">כל החודשים</option></select>
+      <select class="fsel" id="foa-f-month-from" onchange="foaRenderProducts()" style="min-width:110px"><option value="">מחודש...</option></select>
+      <span style="color:var(--muted);font-size:12px">עד</span>
+      <select class="fsel" id="foa-f-month-to" onchange="foaRenderProducts()" style="min-width:110px"><option value="">...חודש</option></select>
+      <select class="fsel" id="foa-f-pay" onchange="foaRenderProducts()">
+        <option value="">שולם / לא שולם</option>
+        <option value="שולם">שולם ✅</option>
+        <option value="לא שולם">טרם שולם ❌</option>
+      </select>
+      <button onclick="foaResetFilters()" style="padding:5px 12px;background:none;border:0.5px solid var(--border-strong);border-radius:6px;color:var(--muted);font-size:12px;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap">✕ איפוס</button>
     </div>
     <div class="bulk-bar" id="foa-bulk-bar">
       <span id="foa-bulk-count">0 נבחרו</span>
@@ -1576,7 +1585,7 @@ function renderSidebar(){
       </div>
       <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>`:''}
     </div>`;
-    })()}
+    })()}`;
     <div class="sidebar-card">
       <div class="sidebar-title">תובנות</div>
       <div class="insight-item">עסקה ממוצעת: <strong>${fmt(avgDeal)}</strong></div>
@@ -1590,7 +1599,6 @@ function renderSidebar(){
       </div>
       <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
     </div>
-  `;
 }
 
 async function runAIInsight(){
@@ -3615,6 +3623,158 @@ function foaPopFilters(){
   });
   const fm=document.getElementById('foa-f-month');
   if(fm){const c=fm.value;fm.innerHTML='<option value="">כל החודשים</option>'+months.map(m=>`<option value="${m}">${foaFmtMonth(m)}</option>`).join('');if(c)fm.value=c;}
+  const fmFrom=document.getElementById('foa-f-month-from');
+  if(fmFrom){const c=fmFrom.value;fmFrom.innerHTML='<option value="">מחודש...</option>'+[...months].reverse().map(m=>`<option value="${m}">${foaFmtMonth(m)}</option>`).join('');if(c)fmFrom.value=c;}
+  const fmTo=document.getElementById('foa-f-month-to');
+  if(fmTo){const c=fmTo.value;fmTo.innerHTML='<option value="">...חודש</option>'+months.map(m=>`<option value="${m}">${foaFmtMonth(m)}</option>`).join('');if(c)fmTo.value=c;}
+}
+
+function foaResetFilters(){
+  ['foa-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['foa-f-service','foa-f-status','foa-f-month-from','foa-f-month-to','foa-f-pay'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  foaRenderProducts();
+}
+
+function foaExportPDF(){
+  const fSvc=document.getElementById('foa-f-service')?.value||'';
+  const fMFrom=document.getElementById('foa-f-month-from')?.value||'';
+  const fMTo=document.getElementById('foa-f-month-to')?.value||'';
+  const fPay=document.getElementById('foa-f-pay')?.value||'';
+  const fSt=document.getElementById('foa-f-status')?.value||'';
+
+  let data=[...foaProducts].filter(p=>{
+    if(fSvc&&p.service!==fSvc)return false;
+    const pm=foaGetMonth(p.date);
+    if(fMFrom&&pm&&pm<fMFrom)return false;
+    if(fMTo&&pm&&pm>fMTo)return false;
+    if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
+    if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
+    if(fSt&&p.status!==fSt)return false;
+    return true;
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'});
+  const total=data.reduce((s,p)=>s+(p.rate||0),0);
+  const paid=data.filter(p=>p.pay_status==='שולם').reduce((s,p)=>s+(p.rate||0),0);
+  const unpaid=total-paid;
+
+  const svcMap={};
+  data.forEach(p=>{const s=p.service||'—';if(!svcMap[s])svcMap[s]={total:0,paid:0,count:0};svcMap[s].total+=p.rate||0;if(p.pay_status==='שולם')svcMap[s].paid+=p.rate||0;svcMap[s].count++;});
+
+  const rangeLabel=fMFrom&&fMTo?`${foaFmtMonth(fMFrom)} – ${foaFmtMonth(fMTo)}`:fMFrom?`מ-${foaFmtMonth(fMFrom)}`:fMTo?`עד ${foaFmtMonth(fMTo)}`:'';
+  const filterLabel=[fSvc&&`שירות: ${fSvc}`,rangeLabel,fPay&&`תשלום: ${fPay}`,fSt&&`סטטוס: ${fSt}`].filter(Boolean).join(' · ')||'כל התוצרים';
+  const fmtN=n=>'₪'+Math.round(n||0).toLocaleString('he-IL');
+
+  const html=`<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>דוח FOA — תומר כרמלי</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+body{font-family:'Heebo',sans-serif;background:#0f1117;color:#e8eaf0;direction:rtl;font-size:13px}
+@media print{@page{margin:12mm;size:A4}.no-print{display:none!important}.page-break{page-break-before:always}}
+.page{max-width:800px;margin:0 auto;padding:24px}
+.header{background:linear-gradient(135deg,#0a0f1a 0%,#0f1f40 100%);color:#fff;border-radius:16px;padding:32px 36px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;border:1px solid rgba(79,140,255,0.2)}
+.header-title{font-size:26px;font-weight:800;margin-bottom:4px}
+.header-sub{font-size:13px;opacity:0.6;margin-bottom:12px}
+.header-period{background:rgba(79,140,255,0.15);border:1px solid rgba(79,140,255,0.4);border-radius:8px;padding:6px 14px;font-size:12px;color:#6cb4ff;display:inline-block}
+.header-meta{text-align:left;opacity:0.6;font-size:11px;line-height:1.8}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.card{background:#1a1d27;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:18px 16px}
+.card-label{font-size:11px;color:#6b7280;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.card-value{font-size:20px;font-weight:700}
+.blue{color:#6cb4ff}.green{color:#22c87a}.red{color:#ff5c5c}
+.section{background:#1a1d27;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:20px 22px;margin-bottom:16px}
+.section-title{font-size:13px;font-weight:700;color:#e8eaf0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px}
+.section-title span{background:rgba(79,140,255,0.12);color:#6cb4ff;border-radius:6px;padding:3px 8px;font-size:10px;border:1px solid rgba(79,140,255,0.2)}
+.svc-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.svc-row:last-child{border-bottom:none}
+.svc-name{font-weight:700;color:#6cb4ff}
+.svc-bar-wrap{width:100px;height:4px;background:rgba(255,255,255,0.08);border-radius:3px;margin-top:5px}
+.svc-bar{height:4px;background:linear-gradient(90deg,#4f8cff,#a78bfa);border-radius:3px}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{background:#22263a;padding:9px 10px;text-align:right;font-weight:600;color:#6cb4ff;font-size:10px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid rgba(79,140,255,0.25)}
+.tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.05);vertical-align:middle;color:#c9cde0}
+.tbl tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.badge-paid{background:rgba(34,200,122,0.15);color:#22c87a;border:1px solid rgba(34,200,122,0.3)}
+.badge-unpaid{background:rgba(255,92,92,0.15);color:#ff5c5c;border:1px solid rgba(255,92,92,0.3)}
+.badge-done{background:rgba(34,200,122,0.12);color:#22c87a;border:1px solid rgba(34,200,122,0.2)}
+.badge-pending{background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.2)}
+.footer{text-align:center;color:#4b5563;font-size:10px;padding:16px 0;margin-top:8px}
+.print-btn{position:fixed;bottom:24px;left:24px;background:linear-gradient(135deg,#4f8cff,#a78bfa);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-family:'Heebo',sans-serif;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(79,140,255,0.4);z-index:100}
+</style>
+</head>
+<body>
+<div class="page">
+<button class="print-btn no-print" onclick="window.print()">🖨️ שמור כ-PDF</button>
+<div class="header">
+  <div>
+    <div style="font-size:28px;margin-bottom:8px">🎯</div>
+    <div class="header-title">דוח FOA</div>
+    <div class="header-sub">תומר כרמלי · עוסק מורשה</div>
+    <div class="header-period">📋 ${filterLabel}</div>
+    <div style="margin-top:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);border-radius:8px;padding:8px 14px;font-size:12px;color:#fbbf24;font-weight:700">⚠️ כל הסכומים המופיעים בדוח זה הם לפני מע"מ</div>
+  </div>
+  <div class="header-meta">
+    <div>הופק: ${dateStr}</div>
+    <div>סה"כ תוצרים: ${data.length}</div>
+  </div>
+</div>
+<div class="cards">
+  <div class="card"><div class="card-label">סה"כ</div><div class="card-value blue">${fmtN(total)}</div></div>
+  <div class="card"><div class="card-label">שולם</div><div class="card-value green">${fmtN(paid)}</div></div>
+  <div class="card"><div class="card-label">טרם שולם</div><div class="card-value red">${fmtN(unpaid)}</div></div>
+  <div class="card"><div class="card-label">תוצרים</div><div class="card-value">${data.length}</div></div>
+</div>
+<div class="section">
+  <div class="section-title">🎯 לפי שירות <span>${Object.keys(svcMap).length}</span></div>
+  ${Object.entries(svcMap).sort((a,b)=>b[1].total-a[1].total).map(([svc,d])=>`
+  <div class="svc-row">
+    <div>
+      <div class="svc-name">${svc}</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:2px">${d.count} תוצרים · שולם: ${fmtN(d.paid)}</div>
+      <div class="svc-bar-wrap"><div class="svc-bar" style="width:${total?Math.round(d.total/total*100):0}%"></div></div>
+    </div>
+    <div style="text-align:left">
+      <div style="font-weight:700;font-size:14px">${fmtN(d.total)}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:2px">${total?Math.round(d.total/total*100):0}%</div>
+    </div>
+  </div>`).join('')}
+</div>
+<div class="section page-break">
+  <div class="section-title">📋 פירוט תוצרים <span>${data.length}</span></div>
+  <table class="tbl">
+    <thead><tr>
+      <th>תאריך</th><th>שירות</th><th>תיאור</th><th>מחזור</th>
+      <th>תעריף</th><th>סטטוס</th><th>תשלום</th>
+    </tr></thead>
+    <tbody>
+    ${data.map(p=>`<tr>
+      <td style="color:#6b7280;white-space:nowrap">${foaFmtDate(p.date)||'—'}</td>
+      <td><span style="color:#6cb4ff;font-weight:600;font-size:11px">${p.service||'—'}</span></td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.desc||'—'}</td>
+      <td><span style="background:rgba(255,255,255,0.06);border-radius:4px;padding:1px 6px;font-size:10px">${p.cycle||'—'}</span></td>
+      <td style="font-weight:700;color:#6cb4ff">${fmtN(p.rate)}</td>
+      <td><span class="badge ${p.status==='בוצע'?'badge-done':'badge-pending'}">${p.status||'—'}</span></td>
+      <td><span class="badge ${p.pay_status==='שולם'?'badge-paid':'badge-unpaid'}">${p.pay_status==='שולם'?'שולם':'טרם שולם'}</span></td>
+    </tr>`).join('')}
+    </tbody>
+  </table>
+</div>
+<div class="footer">דוח זה הופק אוטומטית ממערכת מעקב הכנסות תומר כרמלי · ${dateStr}</div>
+</div>
+</body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
   const em=document.getElementById('foa-exp-month');
   if(em){const c=em.value;em.innerHTML='<option value="">בחר חודש...</option>'+months.map(m=>`<option value="${m}">${foaFmtMonth(m)}</option>`).join('');if(c)em.value=c;}
 }
@@ -3860,12 +4020,18 @@ function foaRenderProducts(){
   const s=(document.getElementById('foa-search')?.value||'').toLowerCase();
   const fSvc=document.getElementById('foa-f-service')?.value||'';
   const fSt=document.getElementById('foa-f-status')?.value||'';
-  const fM=document.getElementById('foa-f-month')?.value||'';
+  const fMFrom=document.getElementById('foa-f-month-from')?.value||'';
+  const fMTo=document.getElementById('foa-f-month-to')?.value||'';
+  const fPay=document.getElementById('foa-f-pay')?.value||'';
   const filtered=foaProducts.filter(p=>{
     if(s&&!(p.service||'').includes(s)&&!(p.desc||'').includes(s)&&!(p.notes||'').includes(s)&&!(p.cycle||'').includes(s))return false;
     if(fSvc&&p.service!==fSvc)return false;
     if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
-    if(fM&&foaGetMonth(p.date)!==fM)return false;
+    const pm=foaGetMonth(p.date);
+    if(fMFrom&&pm&&pm<fMFrom)return false;
+    if(fMTo&&pm&&pm>fMTo)return false;
+    if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
+    if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
     return true;
   }).sort((a,b)=>{const da=a.date||'',db=b.date||'';if(da&&db)return db>da?1:db<da?-1:0;if(da)return -1;if(db)return 1;return(b.id||0)-(a.id||0);});
   const el=document.getElementById('foa-products-tbl');if(!el)return;
