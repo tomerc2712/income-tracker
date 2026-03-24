@@ -3775,9 +3775,6 @@ body{font-family:'Heebo',sans-serif;background:#0f1117;color:#e8eaf0;direction:r
   w.document.write(html);
   w.document.close();
 }
-  const em=document.getElementById('foa-exp-month');
-  if(em){const c=em.value;em.innerHTML='<option value="">בחר חודש...</option>'+months.map(m=>`<option value="${m}">${foaFmtMonth(m)}</option>`).join('');if(c)em.value=c;}
-}
 
 // ── FOA STATUS BADGES ─────────────────────────────────────
 function foaStatusBadge(id,s){
