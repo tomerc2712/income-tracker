@@ -1484,20 +1484,33 @@ function renderCashflowCard(cm, vatDue, taxDue){
   const monthOpts = availMonths.map(m=>'<option value="'+m+'" '+(m===cfMonth?'selected':'')+'>'+fmtMonthStr(m)+'</option>').join('');
   const pct = (n,t) => t>0 ? Math.round(n/t*100) : 0;
 
-  // חסכונות
+  // בלוק 1 — תזרים חודשי
   const vacation = Math.round(gross*0.05);
   const emergency = Math.round(gross*0.05);
   const savings = Math.round(gross*0.05);
   const stocks = Math.round(gross*0.10);
   const totalSavings = vacation+emergency+savings+stocks;
-
-  // תשלומים קבועים
   const bituach = 661;
   const accountant = 595;
   const car = 500;
-  const totalFixed = vatDue+taxDue+bituach+accountant+car;
-
+  const totalFixed = bituach+accountant+car;
   const netLeft = gross - totalSavings - totalFixed;
+
+  // בלוק 2 — מע"מ ומס לפי תקופה דו-חודשית
+  const now = new Date();
+  const curMonthNum = now.getMonth()+1;
+  const periodEndMonth = curMonthNum%2===0?curMonthNum:curMonthNum+1;
+  const periodStartMonth = periodEndMonth-1;
+  const mNames = ['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const periodLabel = mNames[periodStartMonth]+'–'+mNames[periodEndMonth]+' '+now.getFullYear();
+  const periodMonths = [
+    now.getFullYear()+'-'+String(periodStartMonth).padStart(2,'0'),
+    now.getFullYear()+'-'+String(periodEndMonth).padStart(2,'0')
+  ];
+  const vatBase = entries.filter(e=>!e.deleted&&!e.vat_exempt&&periodMonths.includes(e.month)).reduce((s,e)=>s+(e.amount||0),0);
+  const vatCalc = Math.round(vatBase*0.18);
+  const taxBase = entries.filter(e=>!e.deleted&&periodMonths.includes(e.month)).reduce((s,e)=>s+(e.amount||0),0);
+  const taxCalc = Math.round(taxBase*0.05);
 
   const bar = (label, val, color) =>
     '<div style="margin-bottom:7px">' +
@@ -1506,10 +1519,11 @@ function renderCashflowCard(cm, vatDue, taxDue){
         '<span style="font-weight:600;color:'+color+'">'+fmt(val)+'</span>' +
       '</div>' +
       '<div style="height:2px;background:rgba(255,255,255,0.06);border-radius:2px">' +
-        '<div style="height:2px;width:'+Math.min(pct(val,gross),100)+'%;background:'+color+';border-radius:2px;opacity:0.65"></div>' +
+        '<div style="height:2px;width:'+Math.min(pct(val,gross||1),100)+'%;background:'+color+';border-radius:2px;opacity:0.65"></div>' +
       '</div>' +
     '</div>';
 
+  // ── בלוק 1 ──
   let html = '<div class="sidebar-card" style="border-color:rgba(52,211,153,0.15)">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
   html += '<div class="sidebar-title" style="margin-bottom:0">💵 תזרים חודשי</div>';
@@ -1518,6 +1532,7 @@ function renderCashflowCard(cm, vatDue, taxDue){
   html += '<div style="font-size:11px;color:var(--hint);margin-bottom:12px">ברוטו: <strong style="color:var(--text);font-size:13px">'+fmt(gross)+'</strong></div>';
 
   if(gross > 0){
+    // חסכונות
     html += '<div style="font-size:10px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">חסכונות</div>';
     html += bar('🏖️ חיסכון חופשה (5%)', vacation, '#38bdf8');
     html += bar('🆘 חיסכון חירום (5%)', emergency, '#fb923c');
@@ -1526,15 +1541,15 @@ function renderCashflowCard(cm, vatDue, taxDue){
     html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.07)">';
     html += '<span style="color:var(--muted)">סה"כ חסכונות</span><span style="font-weight:700;color:#34d399">'+fmt(totalSavings)+'</span></div>';
 
-    html += '<div style="font-size:10px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">תשלומים קבועים</div>';
-    html += bar('💰 מע"מ (18%)', vatDue, '#f87171');
-    html += bar('🧾 מקדמת מס (5%)', taxDue, '#fbbf24');
-    html += bar('🏛️ ביטוח לאומי', bituach, '#f87171');
-    html += bar('📋 רואה חשבון', accountant, '#f87171');
-    html += bar('🚗 רכב (קבוע)', car, '#a78bfa');
+    // הוצאות קבועות
+    html += '<div style="font-size:10px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">הוצאות קבועות</div>';
+    html += bar('🏛️ ביטוח לאומי', bituach, '#a78bfa');
+    html += bar('📋 רואה חשבון', accountant, '#a78bfa');
+    html += bar('🚗 רכב', car, '#a78bfa');
     html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.07)">';
-    html += '<span style="color:var(--muted)">סה"כ קבועים</span><span style="font-weight:700;color:#f87171">'+fmt(totalFixed)+'</span></div>';
+    html += '<span style="color:var(--muted)">סה"כ קבועות</span><span style="font-weight:700;color:#a78bfa">'+fmt(totalFixed)+'</span></div>';
 
+    // נטו
     html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px">';
     html += '<span style="font-size:12px;font-weight:600;color:var(--text)">🏠 נטו לחיות</span>';
     html += '<span style="font-size:18px;font-weight:800;color:'+(netLeft>0?'#34d399':'#ff5c5c')+'">'+fmt(netLeft)+'</span></div>';
@@ -1543,6 +1558,19 @@ function renderCashflowCard(cm, vatDue, taxDue){
     html += '<div style="font-size:12px;color:var(--hint)">אין הכנסות ששולמו בחודש זה</div>';
   }
   html += '</div>';
+
+  // ── בלוק 2 — מע"מ ומס ──
+  html += '<div class="sidebar-card" style="border-color:rgba(255,180,0,0.2)">';
+  html += '<div class="sidebar-title" style="color:var(--warn);margin-bottom:10px">💰 מע"מ ומס — '+periodLabel+'</div>';
+  html += '<div style="font-size:10px;color:var(--hint);margin-bottom:10px">לפי הכנסות שנצברו עד כה בתקופה</div>';
+  html += bar('מע"מ לתשלום (18%)', vatCalc, '#fbbf24');
+  html += bar('מקדמת מס הכנסה (5%)', taxCalc, '#fb923c');
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px;border-top:1px solid rgba(255,180,0,0.15);margin-top:4px">';
+  html += '<span style="font-size:12px;font-weight:600;color:var(--text)">סה"כ לרשויות</span>';
+  html += '<span style="font-size:16px;font-weight:800;color:#f87171">'+fmt(vatCalc+taxCalc)+'</span></div>';
+  html += '<div style="font-size:10px;color:var(--hint);margin-top:6px">מע"מ על עסקאות חייבות בלבד</div>';
+  html += '</div>';
+
   return html;
 }
 
