@@ -771,7 +771,9 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <option value="בעריכה">בעריכה</option>
         <option value="טרם נערך">טרם נערך</option>
       </select>
-      <select class="fsel" id="alin-f-month" onchange="alinRenderProducts()"><option value="">כל החודשים</option></select>
+      <select class="fsel" id="alin-f-month-from" onchange="alinRenderProducts()" style="min-width:110px"><option value="">מחודש...</option></select>
+      <span style="color:var(--muted);font-size:12px">עד</span>
+      <select class="fsel" id="alin-f-month-to" onchange="alinRenderProducts()" style="min-width:110px"><option value="">...חודש</option></select>
       <select class="fsel" id="alin-f-pay" onchange="alinRenderProducts()">
         <option value="">שולם / לא שולם</option>
         <option value="שולם">שולם ✅</option>
@@ -2669,6 +2671,10 @@ function alinPopFilters(){
   if(ft){const c=ft.value;ft.innerHTML='<option value="">כל סוגי עבודה</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');if(c)ft.value=c;}
   const fm=document.getElementById('alin-f-month');
   if(fm){const c=fm.value;fm.innerHTML='<option value="">כל החודשים</option>'+months.map(m=>`<option value="${m}">${alinFmtMonth(m)}</option>`).join('');if(c)fm.value=c;}
+  const fmFrom=document.getElementById('alin-f-month-from');
+  if(fmFrom){const c=fmFrom.value;fmFrom.innerHTML='<option value="">מחודש...</option>'+months.slice().reverse().map(m=>`<option value="${m}">${alinFmtMonth(m)}</option>`).join('');if(c)fmFrom.value=c;}
+  const fmTo=document.getElementById('alin-f-month-to');
+  if(fmTo){const c=fmTo.value;fmTo.innerHTML='<option value="">...חודש</option>'+months.map(m=>`<option value="${m}">${alinFmtMonth(m)}</option>`).join('');if(c)fmTo.value=c;}
   const em=document.getElementById('alin-exp-month');
   if(em){const c=em.value;em.innerHTML='<option value="">בחר חודש...</option>'+months.map(m=>`<option value="${m}">${alinFmtMonth(m)}</option>`).join('');if(c)em.value=c;}
 }
@@ -2842,14 +2848,17 @@ function alinRenderProducts(){
   const fS=document.getElementById('alin-f-show')?.value||'';
   const fT=document.getElementById('alin-f-type')?.value||'';
   const fSt=document.getElementById('alin-f-status')?.value||'';
-  const fM=document.getElementById('alin-f-month')?.value||'';
+  const fMFrom=document.getElementById('alin-f-month-from')?.value||'';
+  const fMTo=document.getElementById('alin-f-month-to')?.value||'';
   const fPay=document.getElementById('alin-f-pay')?.value||'';
   const filtered=alinProducts.filter(p=>{
     if(s&&!(p.show||'').includes(s)&&!(p.type||'').includes(s)&&!(p.notes||'').includes(s))return false;
     if(fS&&p.show!==fS)return false;
     if(fT&&p.type!==fT)return false;
     if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
-    if(fM&&alinGetMonth(p.date)!==fM)return false;
+    const pm=alinGetMonth(p.date);
+    if(fMFrom&&pm&&pm<fMFrom)return false;
+    if(fMTo&&pm&&pm>fMTo)return false;
     if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
     if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
     return true;
@@ -3179,13 +3188,16 @@ function alinDel(id){if(!confirm('למחוק?'))return;alinProducts=alinProducts
 function alinExportPDF(){
   // get current filters
   const fS=document.getElementById('alin-f-show')?.value||'';
-  const fM=document.getElementById('alin-f-month')?.value||'';
+  const fMFrom=document.getElementById('alin-f-month-from')?.value||'';
+  const fMTo=document.getElementById('alin-f-month-to')?.value||'';
   const fPay=document.getElementById('alin-f-pay')?.value||'';
   const fSt=document.getElementById('alin-f-status')?.value||'';
 
   let data=[...alinProducts].filter(p=>{
     if(fS&&p.show!==fS)return false;
-    if(fM&&alinGetMonth(p.date)!==fM)return false;
+    const pm=alinGetMonth(p.date);
+    if(fMFrom&&pm&&pm<fMFrom)return false;
+    if(fMTo&&pm&&pm>fMTo)return false;
     if(fPay==='שולם'&&p.pay_status!=='שולם')return false;
     if(fPay==='לא שולם'&&p.pay_status==='שולם')return false;
     if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
@@ -3202,7 +3214,8 @@ function alinExportPDF(){
   const showMap={};
   data.forEach(p=>{const s=p.show||'—';if(!showMap[s])showMap[s]={total:0,paid:0,count:0};showMap[s].total+=p.rate||0;if(p.pay_status==='שולם')showMap[s].paid+=p.rate||0;showMap[s].count++;});
 
-  const filterLabel=[fS&&`תוכנית: ${fS}`,fM&&`חודש: ${fM}`,fPay&&`תשלום: ${fPay}`].filter(Boolean).join(' · ')||'כל התוצרים';
+  const rangeLabel=fMFrom&&fMTo?`${alinFmtMonth(fMFrom)} – ${alinFmtMonth(fMTo)}`:fMFrom?`מ-${alinFmtMonth(fMFrom)}`:fMTo?`עד ${alinFmtMonth(fMTo)}`:'';
+  const filterLabel=[fS&&`תוכנית: ${fS}`,rangeLabel,fPay&&`תשלום: ${fPay}`,fSt&&`סטטוס: ${fSt}`].filter(Boolean).join(' · ')||'כל התוצרים';
   const fmtN=n=>'₪'+Math.round(n||0).toLocaleString('he-IL');
 
   const html=`<!DOCTYPE html>
