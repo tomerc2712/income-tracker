@@ -2853,7 +2853,7 @@ function alinRenderProducts(){
   const fPay=document.getElementById('alin-f-pay')?.value||'';
   const filtered=alinProducts.filter(p=>{
     if(s&&!(p.show||'').includes(s)&&!(p.type||'').includes(s)&&!(p.notes||'').includes(s))return false;
-    if(fS&&p.show!==fS)return false;
+    if(fS&&p.show!==fS&&p.show?.replace(/\"/g,'"')!==fS.replace(/\"/g,'"'))return false;
     if(fT&&p.type!==fT)return false;
     if(fSt&&p.status!==fSt&&!(fSt==='מוכן'&&p.status==='בוצע'))return false;
     const pm=alinGetMonth(p.date);
@@ -3194,7 +3194,7 @@ function alinExportPDF(){
   const fSt=document.getElementById('alin-f-status')?.value||'';
 
   let data=[...alinProducts].filter(p=>{
-    if(fS&&p.show!==fS)return false;
+    if(fS&&p.show!==fS&&p.show?.replace(/\"/g,'"')!==fS.replace(/\"/g,'"'))return false;
     const pm=alinGetMonth(p.date);
     if(fMFrom&&pm&&pm<fMFrom)return false;
     if(fMTo&&pm&&pm>fMTo)return false;
