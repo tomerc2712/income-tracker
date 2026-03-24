@@ -1538,7 +1538,48 @@ function renderSidebar(){
         <button onclick="runAIInsight()" id="ai-refresh-btn" style="padding:3px 10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:6px;color:#a78bfa;font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">רענן</button>
       </div>
       <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
+    </div>
+    ${(()=>{
+      const gross=entries.filter(e=>!e.deleted&&e.month===cm&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
+      if(!gross) return '';
+      const vacation=Math.round(gross*0.05);
+      const emergency=Math.round(gross*0.05);
+      const car=500;
+      const savings=Math.round(gross*0.05);
+      const stocks=Math.round(gross*0.05);
+      const tax=Math.round(gross*0.05);
+      const totalOut=vacation+emergency+car+savings+stocks+tax;
+      const netLeft=gross-totalOut;
+      const pct=(n,t)=>Math.round(n/t*100);
+      const items=[
+        {label:'🏖️ חיסכון חופשה',val:vacation,color:'#38bdf8'},
+        {label:'🆘 חיסכון חירום',val:emergency,color:'#fb923c'},
+        {label:'🚗 חיסכון רכב',val:car,color:'#a78bfa'},
+        {label:'🏦 חיסכון כללי',val:savings,color:'#34d399'},
+        {label:'📈 מניות',val:stocks,color:'#fbbf24'},
+        {label:'🧾 מס הכנסה (5%)',val:tax,color:'#f87171'},
+      ];
+      return `
+    <div class="sidebar-card" style="border-color:rgba(52,211,153,0.2)">
+      <div class="sidebar-title" style="color:#34d399">💵 חלוקת הכנסה — ${fmtMonthStr(cm)}</div>
+      <div style="font-size:11px;color:var(--hint);margin-bottom:10px">ברוטו: <strong style="color:var(--text)">${fmt(gross)}</strong></div>
+      ${items.map(i=>`
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+            <span style="color:var(--muted)">${i.label}</span>
+            <span style="font-weight:600;color:${i.color}">${fmt(i.val)}</span>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px">
+            <div style="height:3px;width:${Math.min(pct(i.val,gross),100)}%;background:${i.color};border-radius:2px;opacity:0.7"></div>
+          </div>
+        </div>`).join('')}
+      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--muted)">🏠 נטו לחיות</span>
+        <span style="font-size:16px;font-weight:700;color:#34d399">${fmt(netLeft)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>
     </div>`;
+    })()}`;
 }
 
 async function runAIInsight(){
