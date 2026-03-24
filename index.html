@@ -1523,71 +1523,95 @@ function renderSidebar(){
       <div class="sidebar-stat"><span class="sidebar-stat-label">חוב כולל פתוח</span><span class="sidebar-stat-value yellow">${fmt(totalDebt)}</span></div>
       <div class="sidebar-stat"><span class="sidebar-stat-label">עסקאות פתוחות</span><span class="sidebar-stat-value blue">${debtCount}</span></div>
     </div>
-    <div class="sidebar-card" style="border-color:rgba(255,180,0,0.25)">
-      <div class="sidebar-title" style="color:var(--warn)">💰 תשלומי מס — ${periodLabel}</div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">מע"מ לתשלום (18%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(vatDue)}</span></div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">מקדמת מס הכנסה (5%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(taxDue)}</span></div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">ביטוח לאומי</span><span class="sidebar-stat-value" style="color:var(--warn)">₪661</span></div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">רואה חשבון (כולל מע"מ)</span><span class="sidebar-stat-value" style="color:var(--warn)">₪595</span></div>
-      <div style="height:1px;background:rgba(255,180,0,0.15);margin:8px 0"></div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">סה"כ לשלם</span><span class="sidebar-stat-value red">${fmt(vatDue+taxDue+661+595)}</span></div>
-      <div style="font-size:10px;color:var(--hint);margin-top:6px">מע"מ על עסקאות חייבות בלבד · מס על כלל ההכנסות</div>
-    </div>
     <div class="sidebar-card">
       <div class="sidebar-title">לקוחות מובילים ${yr}</div>
       ${topC.map((c,i)=>`<div class="sidebar-top-item"><span style="color:var(--hint);font-size:10px;margin-left:4px">${i+1}</span><span class="sidebar-top-name">${c[0]}</span><span class="sidebar-top-val">${fmt(c[1])}</span></div>`).join('')}
       ${!topC.length?'<div style="font-size:12px;color:var(--hint)">אין נתונים</div>':''}
     </div>
     ${(()=>{
-      // cashflow month — use selected sidebar month or current
       const cfMonth=window._cfMonth||cm;
-      const gross=entries.filter(e=>!e.deleted&&e.month===cfMonth&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
-      // build available months list
       const availMonths=[...new Set(entries.filter(e=>!e.deleted&&e.pay_status==='שולם').map(e=>e.month).filter(Boolean))].sort().reverse();
       const monthOpts=availMonths.map(m=>`<option value="${m}" ${m===cfMonth?'selected':''}>${fmtMonthStr(m)}</option>`).join('');
+      const gross=entries.filter(e=>!e.deleted&&e.month===cfMonth&&e.pay_status==='שולם').reduce((s,e)=>s+(e.amount||0),0);
       if(!gross&&!availMonths.length) return '';
+      const pct=(n,t)=>t>0?Math.round(n/t*100):0;
+
+      // חסכונות
       const vacation=Math.round(gross*0.05);
       const emergency=Math.round(gross*0.05);
-      const car=500;
       const savings=Math.round(gross*0.05);
       const stocks=Math.round(gross*0.10);
-      const tax=Math.round(gross*0.05);
-      const totalOut=vacation+emergency+car+savings+stocks+tax;
-      const netLeft=gross-totalOut;
-      const pct=(n,t)=>t>0?Math.round(n/t*100):0;
-      const items=[
+      const totalSavings=vacation+emergency+savings+stocks;
+
+      // תשלומים קבועים
+      const vat=vatDue;
+      const taxAdv=taxDue;
+      const bituach=661;
+      const accountant=595;
+      const car=500;
+      const totalFixed=vat+taxAdv+bituach+accountant+car;
+
+      const netLeft=gross-totalSavings-totalFixed;
+
+      const savingsItems=[
         {label:'🏖️ חיסכון חופשה (5%)',val:vacation,color:'#38bdf8'},
         {label:'🆘 חיסכון חירום (5%)',val:emergency,color:'#fb923c'},
-        {label:'🚗 רכב (קבוע)',val:car,color:'#a78bfa'},
         {label:'🏦 חיסכון כללי (5%)',val:savings,color:'#34d399'},
         {label:'📈 מניות (10%)',val:stocks,color:'#fbbf24'},
-        {label:'🧾 מס הכנסה (5%)',val:tax,color:'#f87171'},
       ];
-      return `
-    <div class="sidebar-card" style="border-color:rgba(52,211,153,0.2)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="sidebar-title" style="color:#34d399;margin-bottom:0">💵 חלוקת הכנסה</div>
+      const fixedItems=[
+        {label:'💰 מע"מ (18%)',val:vat,color:'#f87171'},
+        {label:'🧾 מקדמת מס (5%)',val:taxAdv,color:'#fbbf24'},
+        {label:'🏛️ ביטוח לאומי',val:bituach,color:'#f87171'},
+        {label:'📋 רואה חשבון',val:accountant,color:'#f87171'},
+        {label:'🚗 רכב (קבוע)',val:car,color:'#a78bfa'},
+      ];
+
+      const barRow=(i)=>`<div style="margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+          <span style="color:var(--muted)">${i.label}</span>
+          <span style="font-weight:600;color:${i.color}">${fmt(i.val)}</span>
+        </div>
+        <div style="height:2px;background:rgba(255,255,255,0.06);border-radius:2px">
+          <div style="height:2px;width:${Math.min(pct(i.val,gross),100)}%;background:${i.color};border-radius:2px;opacity:0.65"></div>
+        </div>
+      </div>`;
+
+      return \`
+    <div class="sidebar-card" style="border-color:rgba(52,211,153,0.15)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="sidebar-title" style="margin-bottom:0">💵 תזרים חודשי</div>
         <select onchange="window._cfMonth=this.value;renderSidebar()" style="background:var(--surface2);border:0.5px solid var(--border-strong);border-radius:6px;color:var(--muted);font-size:10px;padding:2px 6px;font-family:'Heebo',sans-serif;cursor:pointer">
-          ${monthOpts}
+          \${monthOpts}
         </select>
       </div>
-      <div style="font-size:11px;color:var(--hint);margin-bottom:10px">ברוטו: <strong style="color:var(--text)">${fmt(gross)}</strong></div>
-      ${gross>0?items.map(i=>`
-        <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-            <span style="color:var(--muted)">${i.label}</span>
-            <span style="font-weight:600;color:${i.color}">${fmt(i.val)}</span>
-          </div>
-          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px">
-            <div style="height:3px;width:${Math.min(pct(i.val,gross),100)}%;background:${i.color};border-radius:2px;opacity:0.7"></div>
-          </div>
-        </div>`).join(''):'<div style="font-size:12px;color:var(--hint)">אין הכנסות ששולמו בחודש זה</div>'}
-      ${gross>0?`<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:12px;color:var(--muted)">🏠 נטו לחיות</span>
-        <span style="font-size:16px;font-weight:700;color:#34d399">${fmt(netLeft)}</span>
+      <div style="font-size:11px;color:var(--hint);margin-bottom:12px">ברוטו: <strong style="color:var(--text);font-size:13px">\${fmt(gross)}</strong></div>
+
+      \${gross>0?\`
+      <!-- חסכונות -->
+      <div style="font-size:10px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">חסכונות</div>
+      \${savingsItems.map(barRow).join('')}
+      <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <span style="color:var(--muted)">סה"כ חסכונות</span>
+        <span style="font-weight:700;color:#34d399">\${fmt(totalSavings)}</span>
       </div>
-      <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>`:''}
-    </div>`;
+
+      <!-- תשלומים קבועים -->
+      <div style="font-size:10px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">תשלומים קבועים</div>
+      \${fixedItems.map(barRow).join('')}
+      <div style="display:flex;justify-content:space-between;font-size:11px;padding:5px 0;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.07)">
+        <span style="color:var(--muted)">סה"כ קבועים</span>
+        <span style="font-weight:700;color:#f87171">\${fmt(totalFixed)}</span>
+      </div>
+
+      <!-- נטו -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px">
+        <span style="font-size:12px;font-weight:600;color:var(--text)">🏠 נטו לחיות</span>
+        <span style="font-size:18px;font-weight:800;color:\${netLeft>0?'#34d399':'#ff5c5c'}">\${fmt(netLeft)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--hint);text-align:left">\${pct(netLeft,gross)}% מהברוטו</div>
+      \`:'<div style="font-size:12px;color:var(--hint)">אין הכנסות ששולמו בחודש זה</div>'}
+    </div>\`;
     })()}
     <div class="sidebar-card">
       <div class="sidebar-title">תובנות</div>
