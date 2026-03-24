@@ -1526,19 +1526,6 @@ function renderSidebar(){
       ${topC.map((c,i)=>`<div class="sidebar-top-item"><span style="color:var(--hint);font-size:10px;margin-left:4px">${i+1}</span><span class="sidebar-top-name">${c[0]}</span><span class="sidebar-top-val">${fmt(c[1])}</span></div>`).join('')}
       ${!topC.length?'<div style="font-size:12px;color:var(--hint)">אין נתונים</div>':''}
     </div>
-    <div class="sidebar-card">
-      <div class="sidebar-title">תובנות</div>
-      <div class="insight-item">עסקה ממוצעת: <strong>${fmt(avgDeal)}</strong></div>
-      <div class="insight-item">חשבוניות חסרות לשולם: <strong style="color:${noInv?'var(--unpaid)':'var(--paid)'}">${noInv}</strong></div>
-      <div class="insight-item">קבלות חסרות לשולם: <strong style="color:${noRec?'var(--warn)':'var(--paid)'}">${noRec}</strong></div>
-    </div>
-    <div class="sidebar-card" id="ai-insight-card" style="border-color:rgba(139,92,246,0.3)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div class="sidebar-title" style="margin-bottom:0;color:#a78bfa">✨ ניתוח AI</div>
-        <button onclick="runAIInsight()" id="ai-refresh-btn" style="padding:3px 10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:6px;color:#a78bfa;font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">רענן</button>
-      </div>
-      <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
-    </div>
     ${(()=>{
       // cashflow month — use selected sidebar month or current
       const cfMonth=window._cfMonth||cm;
@@ -1590,6 +1577,21 @@ function renderSidebar(){
       <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:left">${pct(netLeft,gross)}% מהברוטו</div>`:''}
     </div>`;
     })()}`;
+}
+    <div class="sidebar-card">
+      <div class="sidebar-title">תובנות</div>
+      <div class="insight-item">עסקה ממוצעת: <strong>${fmt(avgDeal)}</strong></div>
+      <div class="insight-item">חשבוניות חסרות לשולם: <strong style="color:${noInv?'var(--unpaid)':'var(--paid)'}">${noInv}</strong></div>
+      <div class="insight-item">קבלות חסרות לשולם: <strong style="color:${noRec?'var(--warn)':'var(--paid)'}">${noRec}</strong></div>
+    </div>
+    <div class="sidebar-card" id="ai-insight-card" style="border-color:rgba(139,92,246,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="sidebar-title" style="margin-bottom:0;color:#a78bfa">✨ ניתוח AI</div>
+        <button onclick="runAIInsight()" id="ai-refresh-btn" style="padding:3px 10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);border-radius:6px;color:#a78bfa;font-size:11px;font-family:'Heebo',sans-serif;cursor:pointer">רענן</button>
+      </div>
+      <div id="ai-insight-content" style="font-size:12px;color:var(--muted);line-height:1.7">לחץ רענן לקבלת ניתוח</div>
+    </div>
+  `;
 }
 
 async function runAIInsight(){
