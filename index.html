@@ -1527,7 +1527,10 @@ function renderSidebar(){
       <div class="sidebar-title" style="color:var(--warn)">💰 תשלומי מס — ${periodLabel}</div>
       <div class="sidebar-stat"><span class="sidebar-stat-label">מע"מ לתשלום (18%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(vatDue)}</span></div>
       <div class="sidebar-stat"><span class="sidebar-stat-label">מקדמת מס הכנסה (5%)</span><span class="sidebar-stat-value" style="color:var(--warn)">${fmt(taxDue)}</span></div>
-      <div class="sidebar-stat"><span class="sidebar-stat-label">סה"כ לשלם</span><span class="sidebar-stat-value red">${fmt(vatDue+taxDue)}</span></div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">ביטוח לאומי</span><span class="sidebar-stat-value" style="color:var(--warn)">₪661</span></div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">רואה חשבון (כולל מע"מ)</span><span class="sidebar-stat-value" style="color:var(--warn)">₪595</span></div>
+      <div style="height:1px;background:rgba(255,180,0,0.15);margin:8px 0"></div>
+      <div class="sidebar-stat"><span class="sidebar-stat-label">סה"כ לשלם</span><span class="sidebar-stat-value red">${fmt(vatDue+taxDue+661+595)}</span></div>
       <div style="font-size:10px;color:var(--hint);margin-top:6px">מע"מ על עסקאות חייבות בלבד · מס על כלל ההכנסות</div>
     </div>
     <div class="sidebar-card">
