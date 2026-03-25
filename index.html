@@ -2596,6 +2596,10 @@ function onClientSelect(sel){
     const termsEl = document.getElementById('f-terms');
     if(termsEl){ termsEl.value = meta.defaultTerms; calcExpected(); }
   }
+  if(meta.email){
+    const emailEl = document.getElementById('f-client-email');
+    if(emailEl && !emailEl.value) emailEl.value = meta.email;
+  }
 }
 
 function saveClientMetaStore(){
