@@ -1882,7 +1882,6 @@ function renderTable(){
   if(!filtered.length){el.innerHTML='<tr><td colspan="12" class="empty">אין נתונים</td></tr>';document.getElementById('tbl-summary').textContent='';return;}
   const head=`<thead><tr>
     <th class="td-check no-sort"><input type="checkbox" id="check-all" onchange="toggleAll(this)"/></th>
-    <th class="no-sort" style="width:80px"></th>
     <th onclick="sortBy('desc')">תיאור עסקה</th>
     <th onclick="sortBy('client')">לקוח</th>
     <th onclick="sortBy('amount')">סכום</th>
@@ -1895,6 +1894,7 @@ function renderTable(){
     <th class="no-sort">קבלה</th>
     <th class="no-sort">קובץ</th>
     <th class="no-sort" style="color:var(--warn);font-size:10px">תזכורת</th>
+    <th class="no-sort"></th>
   </tr></thead>`;
   const now=new Date(); now.setHours(0,0,0,0);
   const body='<tbody>'+filtered.map(e=>{
@@ -1915,14 +1915,6 @@ function renderTable(){
     }
     return`<tr class="${sel}">
       <td class="td-check"><input type="checkbox" ${sel?'checked':''} onchange="toggleSel(${e.id},this)"/></td>
-      <td style="white-space:nowrap">
-        <button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button>
-        <button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button>
-        ${e.sumit_doc_url
-          ? `<button class="btn-act" id="sumit-btn-${e.id}" title="פתח מסמך ב-Sumit" onclick="window.open('${e.sumit_doc_url}','_blank')" style="color:#00c896">✅</button>`
-          : `<button class="btn-act" id="sumit-btn-${e.id}" title="צור מסמך ב-Sumit" onclick="createSumitDocument(${e.id})" style="opacity:.75">📄</button>`
-        }
-      </td>
       <td class="td-desc" title="${e.desc}" ondblclick="inlineEdit(${e.id},'desc',this)" style="cursor:text">${e.desc}</td>
       <td style="font-size:11px;color:var(--muted);cursor:text" ondblclick="inlineEditClient(${e.id},this)" title="לחץ פעמיים לעריכת לקוח">${e.client||'—'}</td>
       <td class="td-amount ${(e.amount||0)<0?'neg':''}" ondblclick="inlineEdit(${e.id},'amount',this)" style="cursor:text">${fmt(e.amount)}${e.includes_vat?'<span style="font-size:9px;color:var(--muted)"> +מעמ</span>':''}</td>
@@ -1935,6 +1927,14 @@ function renderTable(){
       <td>${recBadge(e.id,e.receipt_status)}</td>
       <td>${recCol}</td>
       ${reminderCol}
+      <td style="white-space:nowrap">
+        <button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button>
+        <button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button>
+        ${e.sumit_doc_url
+          ? `<button class="btn-act" id="sumit-btn-${e.id}" title="פתח מסמך ב-Sumit" onclick="window.open('${e.sumit_doc_url}','_blank')" style="color:#00c896">✅</button>`
+          : `<button class="btn-act" id="sumit-btn-${e.id}" title="צור מסמך ב-Sumit" onclick="createSumitDocument(${e.id})" style="opacity:.75">📄</button>`
+        }
+      </td>
     </tr>`;
   }).join('')+'</tbody>';
   el.innerHTML=head+body;
