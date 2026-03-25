@@ -2036,7 +2036,9 @@ async function createSumitDocument(id) {
         btn.onclick = () => window.open(docUrl, '_blank');
       }
       const _t=document.getElementById('success-toast');
-      if(_t){_t.querySelector('.success-text').textContent='מסמך נוצר בהצלחה ב-Sumit ✅';_t.querySelector('.success-sub').textContent='לחץ על ✅ לפתיחת המסמך';_t.classList.add('show');setTimeout(()=>_t.classList.remove('show'),2500);}
+      if(_t){_t.querySelector('.success-text').textContent='מסמך נוצר בהצלחה ב-Sumit ✅';_t.querySelector('.success-sub').textContent='מעלה PDF ל-Drive...';_t.classList.add('show');setTimeout(()=>_t.classList.remove('show'),3000);}
+      // Auto-fetch PDF and upload to Drive
+      fetchSumitPdfAndUpload(docId, id, e);
     } else {
       const errMsg = (data && data.Message) ? data.Message : JSON.stringify(data);
       if (btn) { btn.textContent = '❌'; btn.disabled = false; btn.title = errMsg; }
@@ -4916,6 +4918,55 @@ async function gPullAll() {
     console.error('Pull error:', e);
     setSyncStatus('⚠️ שגיאה', true);
     return false;
+  }
+}
+
+async function fetchSumitPdfAndUpload(docId, entryId, entry) {
+  try {
+    const res = await fetch('https://api.sumit.co.il/accounting/documents/getpdf/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        Credentials: {
+          CompanyID: SUMIT_COMPANY_ID,
+          APIKey: SUMIT_API_KEY,
+          APIPublicKey: SUMIT_PUBLIC_KEY,
+        },
+        DocumentID: docId,
+        Original: true,
+      }),
+    });
+    const data = await res.json();
+    const b64 = data?.Data?.PDF || data?.Data?.Base64 || data?.PDF || data?.Base64;
+    if (!b64) { console.warn('Sumit getpdf: no PDF in response', data); return; }
+
+    // Convert base64 → Blob
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+
+    // Build filename
+    const clientName = (entry.client || entry.desc || 'מסמך').replace(/[\/\\:*?"<>|]/g, '');
+    const fileName = `${clientName} - ${entry.desc || docId}.pdf`;
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+
+    if (!gToken) { console.warn('No Google token — skipping Drive upload'); return; }
+
+    const uploaded = await gUploadFileToDrive(file, entryId);
+    if (uploaded && uploaded.id) {
+      const idx = entries.findIndex(x => x.id === entryId);
+      if (idx !== -1) {
+        entries[idx].receiptFileId = uploaded.id;
+        entries[idx].lastModified = Date.now();
+        save();
+        renderTable();
+      }
+      const _t = document.getElementById('success-toast');
+      if(_t){_t.querySelector('.success-text').textContent='PDF הועלה ל-Drive ☁️';_t.querySelector('.success-sub').textContent=fileName;_t.classList.add('show');setTimeout(()=>_t.classList.remove('show'),2500);}
+    }
+  } catch(err) {
+    console.error('fetchSumitPdfAndUpload error:', err);
   }
 }
 
