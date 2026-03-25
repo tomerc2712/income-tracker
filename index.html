@@ -591,7 +591,10 @@ body.mode-light .toggle-knob{right:auto;left:2px}
     <div id="clients-list-view">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <input type="text" class="search-input" id="clients-search" placeholder="חיפוש לקוח..." oninput="renderClients()" style="max-width:260px"/>
-        <button class="btn-sm" onclick="addNewClientPrompt()">+ לקוח חדש</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="clients-view-toggle" class="btn-sm" onclick="toggleClientsView()" title="החלף תצוגה" style="padding:5px 10px;font-size:13px">☰ רשימה</button>
+          <button class="btn-sm" onclick="addNewClientPrompt()">+ לקוח חדש</button>
+        </div>
       </div>
       <div class="clients-grid" id="clients-grid"></div>
     </div>
@@ -2385,28 +2388,73 @@ function bulkAssignClient(clientName){
 
 function bulkSet(field,val){selectedIds.forEach(id=>{const idx=entries.findIndex(e=>e.id===id);if(idx>=0)entries[idx][field]=val;});save();selectedIds.clear();renderAll();}
 function bulkDel(){if(!confirm(`למחוק ${selectedIds.size} עסקאות?`))return;entries.forEach(e=>{if(selectedIds.has(e.id)){e.deleted=true;e.lastModified=Date.now();}});save();selectedIds.clear();renderAll();}
+let clientsViewMode = 'grid';
+
+function toggleClientsView(){
+  clientsViewMode = clientsViewMode==='grid' ? 'list' : 'grid';
+  const btn=document.getElementById('clients-view-toggle');
+  const grid=document.getElementById('clients-grid');
+  if(clientsViewMode==='list'){
+    if(btn) btn.textContent='⊞ כרטיסים';
+    if(grid){grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}
+  } else {
+    if(btn) btn.textContent='☰ רשימה';
+    if(grid){grid.style.display='';grid.style.flexDirection='';grid.style.gap='';}
+  }
+  renderClients();
+}
+
 function renderClients(){
   const search=(document.getElementById('clients-search')?.value||'').toLowerCase();
   const clients=allClients().filter(c=>!search||c.toLowerCase().includes(search));
   const grid=document.getElementById('clients-grid');if(!grid)return;
   if(!clients.length){grid.innerHTML='<div class="empty">אין לקוחות</div>';return;}
-  grid.innerHTML=clients.map(c=>{
-    const cEntries=entries.filter(e=>e.client===c);
-    const total=cEntries.reduce((s,e)=>s+getNet(e),0);
-    const paid=cEntries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
-    const debt=cEntries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
-    return`<div class="client-card" data-cname="${c.replace(/"/g,'&quot;')}" onclick="openClientDetail(this.dataset.cname)">
-      <button class="client-del-btn" data-cname="${c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();deleteClient(this.dataset.cname)">🗑</button>
-      <button class="client-edit-btn" data-cname="${c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openClientDetail(this.parentElement.dataset.cname);setTimeout(()=>renameClient(),100)">✏️</button>
-      <div class="client-card-name">${c}</div>
-      <div class="client-card-stats">
-        <div class="client-stat"><div class="client-stat-label">סה"כ</div><div class="client-stat-value blue">${fmt(total)}</div></div>
-        <div class="client-stat"><div class="client-stat-label">עסקאות</div><div class="client-stat-value">${cEntries.length}</div></div>
-        <div class="client-stat"><div class="client-stat-label">שולם</div><div class="client-stat-value green">${fmt(paid)}</div></div>
-        <div class="client-stat"><div class="client-stat-label">חוב</div><div class="client-stat-value yellow">${fmt(debt)}</div></div>
-      </div>
-    </div>`;
-  }).join('');
+  if(clientsViewMode==='list'){
+    grid.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+      '<thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">'+
+      '<th style="text-align:right;padding:6px 10px;font-weight:500">לקוח</th>'+
+      '<th style="text-align:right;padding:6px 10px;font-weight:500">עסקאות</th>'+
+      '<th style="text-align:right;padding:6px 10px;font-weight:500">סה"כ</th>'+
+      '<th style="text-align:right;padding:6px 10px;font-weight:500">שולם</th>'+
+      '<th style="text-align:right;padding:6px 10px;font-weight:500">חוב</th>'+
+      '<th style="padding:6px 10px"></th></tr></thead><tbody>'+
+      clients.map(c=>{
+        const cEntries=entries.filter(e=>e.client===c&&!e.deleted);
+        const total=cEntries.reduce((s,e)=>s+getNet(e),0);
+        const paid=cEntries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
+        const debt=cEntries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
+        const q=c.replace(/"/g,'&quot;');
+        return`<tr style="border-bottom:1px solid var(--border);cursor:pointer" onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background=''" onclick="openClientDetail('${q}')">
+          <td style="padding:8px 10px;font-weight:500">${c}</td>
+          <td style="padding:8px 10px;color:var(--muted)">${cEntries.length}</td>
+          <td style="padding:8px 10px;color:var(--accent)">${fmt(total)}</td>
+          <td style="padding:8px 10px;color:#4ade80">${fmt(paid)}</td>
+          <td style="padding:8px 10px;color:${debt>0?'var(--warn)':' var(--muted)'}">${debt>0?fmt(debt):'—'}</td>
+          <td style="padding:8px 10px;white-space:nowrap">
+            <button class="btn-act" onclick="event.stopPropagation();openClientDetail('${q}');setTimeout(()=>renameClient(),100)">✏️</button>
+            <button class="btn-act" onclick="event.stopPropagation();deleteClient('${q}')">🗑</button>
+          </td>
+        </tr>`;
+      }).join('')+'</tbody></table>';
+  } else {
+    grid.innerHTML=clients.map(c=>{
+      const cEntries=entries.filter(e=>e.client===c&&!e.deleted);
+      const total=cEntries.reduce((s,e)=>s+getNet(e),0);
+      const paid=cEntries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
+      const debt=cEntries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
+      return`<div class="client-card" data-cname="${c.replace(/"/g,'&quot;')}" onclick="openClientDetail(this.dataset.cname)">
+        <button class="client-del-btn" onclick="event.stopPropagation();deleteClient(this.parentElement.dataset.cname)">🗑</button>
+        <button class="client-edit-btn" onclick="event.stopPropagation();openClientDetail(this.parentElement.dataset.cname);setTimeout(()=>renameClient(),100)">✏️</button>
+        <div class="client-card-name">${c}</div>
+        <div class="client-card-stats">
+          <div class="client-stat"><div class="client-stat-label">סה"כ</div><div class="client-stat-value blue">${fmt(total)}</div></div>
+          <div class="client-stat"><div class="client-stat-label">עסקאות</div><div class="client-stat-value">${cEntries.length}</div></div>
+          <div class="client-stat"><div class="client-stat-label">שולם</div><div class="client-stat-value green">${fmt(paid)}</div></div>
+          <div class="client-stat"><div class="client-stat-label">חוב</div><div class="client-stat-value yellow">${fmt(debt)}</div></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
 
 let currentDetailClient = '';
