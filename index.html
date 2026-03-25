@@ -1943,8 +1943,8 @@ async function createSumitDocument(id) {
   const btn = document.getElementById('sumit-btn-' + id);
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
 
-  // document type: 405 = חשבונית מס קבלה
-  const docType = 405;
+  // document type per Sumit docs example
+  const docType = 1;
 
   // payment type: 3 = bank transfer, 2 = cheque
   const isForumFilm = (e.client || '').includes('פורום פילם');
@@ -1963,7 +1963,6 @@ async function createSumitDocument(id) {
         SearchMode: 0,
         Name: e.client || e.desc,
       },
-      Currency: 'ILS',
       ExternalReference: String(e.id),
     },
     Items: [{
@@ -1986,6 +1985,7 @@ async function createSumitDocument(id) {
   };
 
   try {
+    console.log('Sumit payload:', JSON.stringify(payload, null, 2));
     const res = await fetch('https://api.sumit.co.il/accounting/documents/create/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
