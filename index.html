@@ -548,6 +548,17 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <div id="f-file-tag"></div>
       </div>
       <div class="fg" style="margin-bottom:12px"><label>הערות</label><textarea id="f-notes" placeholder="הערות נוספות..."></textarea></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="f-send-sumit" checked style="width:15px;height:15px;accent-color:var(--accent)" onchange="document.getElementById('f-send-email-row').style.display=this.checked?'flex':'none'"/>
+          <span>📄 צור מסמך ב-Sumit אוטומטית</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer" id="f-send-email-row" style="display:none">
+          <input type="checkbox" id="f-send-email" style="width:15px;height:15px;accent-color:var(--accent)"/>
+          <span>📧 שלח מסמך למייל הלקוח</span>
+          <input type="email" id="f-client-email" placeholder="מייל לקוח (אופציונלי)" style="flex:1;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif"/>
+        </label>
+      </div>
       <button class="btn-primary" onclick="addEntry()">הוסף עסקה</button>
     </div>
   </div>
@@ -1164,7 +1175,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
 <!-- RECEIPT VIEWER -->
 <div class="modal-overlay" id="receipt-modal">
   <div class="modal" style="max-width:700px">
-    <div class="modal-title">צפייה בחשבונית <button class="modal-close" onclick="closeModal('receipt-modal')">×</button></div>
+    <div class="modal-title">צפייה בחשבונית <button id="receipt-download-btn" onclick="downloadReceipt()" style="background:var(--accent-bg);border:0.5px solid var(--accent);color:var(--accent);border-radius:6px;padding:3px 10px;font-size:11px;font-family:Heebo,sans-serif;cursor:pointer;margin-left:8px">⬇️ הורד</button><button class="modal-close" onclick="closeModal('receipt-modal')">×</button></div>
     <div id="receipt-content" style="text-align:center"></div>
   </div>
 </div>
@@ -1324,6 +1335,21 @@ function viewReceipt(id){
     cont.innerHTML=`<iframe src="${e.receiptFile.dataUrl}" style="width:100%;height:500px;border:none;border-radius:8px"></iframe>`;
   else cont.innerHTML=`<img src="${e.receiptFile.dataUrl}" style="max-width:100%;border-radius:8px"/>`;
   document.getElementById('receipt-modal').classList.add('open');
+  document.getElementById('receipt-download-btn')._entryId = id;
+}
+
+function downloadReceipt(){
+  const id = document.getElementById('receipt-download-btn')._entryId;
+  const e = entries.find(x=>x.id===id);
+  if (!e) return;
+  if (e.receiptFile && e.receiptFile.dataUrl) {
+    const a = document.createElement('a');
+    a.href = e.receiptFile.dataUrl;
+    a.download = (e.desc||'חשבונית') + '.' + (e.receiptFile.type==='application/pdf'?'pdf':'jpg');
+    a.click();
+  } else if (e.receiptFileId) {
+    window.open('https://drive.google.com/file/d/'+e.receiptFileId+'/view','_blank');
+  }
 }
 
 // ── STORAGE ───────────────────────────────────────────────
@@ -1959,7 +1985,7 @@ function getSumitClientId(clientName) {
   return (match && match.id) ? match.id : '';
 }
 
-async function createSumitDocument(id) {
+async function createSumitDocument(id, sendToEmail) {
   const e = entries.find(x => x.id === id);
   if (!e) return;
 
@@ -1990,6 +2016,7 @@ async function createSumitDocument(id) {
         return _c;
       })(),
       ExternalReference: String(e.id),
+      ...(sendToEmail ? { SendByEmail: { EmailAddress: sendToEmail, Original: true, SendAsPaymentRequest: false } } : {}),
     },
     Items: [{
       Quantity: 1,
@@ -2715,8 +2742,11 @@ function addEntry(){
   entries.unshift(entry);
   save();
   if(client&&!allClients().includes(client)){customClients.push(client);saveMeta();}
-  // Auto-send to Sumit
-  createSumitDocument(entry.id);
+  // Auto-send to Sumit if checkbox checked
+  const sendToSumit = document.getElementById('f-send-sumit')?.checked !== false;
+  const clientEmail = document.getElementById('f-client-email')?.value.trim() || '';
+  const sendEmail = document.getElementById('f-send-email')?.checked && clientEmail;
+  if (sendToSumit) createSumitDocument(entry.id, sendEmail ? clientEmail : null);
   pendingFile=null;
   ['f-desc','f-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-amount').value='';document.getElementById('f-amount').dataset.raw='';
