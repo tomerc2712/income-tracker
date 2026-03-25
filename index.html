@@ -1932,8 +1932,9 @@ function renderTable(){
 function sortBy(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderTable();}
 
 // ── SUMIT API INTEGRATION ─────────────────────────────────
-const SUMIT_COMPANY_ID = 1773320375;
-const SUMIT_API_KEY    = 'L3aCD8vQ6KMXFyy0deN9sLWTDBAygKWpqZCi0FqaWwpMoPowVl';
+const SUMIT_COMPANY_ID  = 1773320375;
+const SUMIT_API_KEY     = 'L3aCD8vQ6KMXFyy0deN9sLWTDBAygKWpqZCi0FqaWwpMoPowVl';
+const SUMIT_PUBLIC_KEY  = 'BaQTf40j4W7u1AeHMVBhKYCYiVpSz30r9j5daku4QTlbBHLMFK';
 
 async function createSumitDocument(id) {
   const e = entries.find(x => x.id === id);
@@ -1980,6 +1981,7 @@ async function createSumitDocument(id) {
     Credentials: {
       CompanyID: SUMIT_COMPANY_ID,
       APIKey: SUMIT_API_KEY,
+      APIPublicKey: SUMIT_PUBLIC_KEY,
     },
   };
 
