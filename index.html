@@ -1942,8 +1942,8 @@ async function createSumitDocument(id) {
   const btn = document.getElementById('sumit-btn-' + id);
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
 
-  // document type: 400 = קבלה, 320 = חשבונית מס
-  const docType = (e.receipt_status === 'יצאה קבלה' || e.pay_status === 'שולם') ? 400 : 320;
+  // document type: 400 = קבלה
+  const docType = 400;
 
   // payment type: 3 = bank transfer, 2 = cheque
   const isForumFilm = (e.client || '').includes('פורום פילם');
