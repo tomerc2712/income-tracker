@@ -1999,8 +1999,8 @@ async function createSumitDocument(id, sendToEmails, emailBody) {
   const btn = document.getElementById('sumit-btn-' + id);
   if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
 
-  // document type per Sumit docs example
-  const docType = 1;
+  // document type: 320 = חשבונית מס (default)
+  const docType = 320;
 
   // payment type: 3 = bank transfer, 2 = cheque
   const isForumFilm = (e.client || '').includes('פורום פילם');
