@@ -1975,6 +1975,8 @@ async function createSumitDocument(id) {
 
   const amount = e.amount || 0;
   const vatIncluded = !e.vat_exempt;
+  // amount in our app is before VAT — send to Sumit with VAT added (×1.18) unless exempt
+  const sumitAmount = vatIncluded ? Math.round(amount * 1.18 * 100) / 100 : amount;
 
   const payload = {
     Details: {
@@ -1991,12 +1993,12 @@ async function createSumitDocument(id) {
     },
     Items: [{
       Quantity: 1,
-      UnitPrice: amount,
-      TotalPrice: amount,
+      UnitPrice: sumitAmount,
+      TotalPrice: sumitAmount,
       Item: { Name: e.desc || e.client || 'שירות' },
     }],
     Payments: [{
-      Amount: amount,
+      Amount: sumitAmount,
       Type: paymentType,
     }],
     VATIncluded: vatIncluded,
