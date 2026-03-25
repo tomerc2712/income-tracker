@@ -553,11 +553,14 @@ body.mode-light .toggle-knob{right:auto;left:2px}
           <input type="checkbox" id="f-send-sumit" checked style="width:15px;height:15px;accent-color:var(--accent)" onchange="document.getElementById('f-send-email-row').style.display=this.checked?'flex':'none'"/>
           <span>📄 צור מסמך ב-Sumit אוטומטית</span>
         </label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer" id="f-send-email-row" style="display:none">
-          <input type="checkbox" id="f-send-email" style="width:15px;height:15px;accent-color:var(--accent)"/>
-          <span>📧 שלח מסמך למייל הלקוח</span>
-          <input type="email" id="f-client-email" placeholder="מייל לקוח (אופציונלי)" style="flex:1;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif"/>
-        </label>
+        <div id="f-send-email-row" style="display:none;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="f-send-email" style="width:15px;height:15px;accent-color:var(--accent)"/>
+            <span>📧 שלח מסמך למייל הלקוח</span>
+          </label>
+          <input type="text" id="f-client-email" placeholder="מיילים מופרדים בפסיק: a@b.com, c@d.com" style="width:100%;padding:5px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif;box-sizing:border-box"/>
+          <textarea id="f-email-body" placeholder="הודעה אישית בגוף המייל (אופציונלי)..." rows="2" style="width:100%;padding:5px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif;resize:vertical;box-sizing:border-box"></textarea>
+        </div>
       </div>
       <button class="btn-primary" onclick="addEntry()">הוסף עסקה</button>
     </div>
@@ -1985,7 +1988,7 @@ function getSumitClientId(clientName) {
   return (match && match.id) ? match.id : '';
 }
 
-async function createSumitDocument(id, sendToEmail) {
+async function createSumitDocument(id, sendToEmails, emailBody) {
   const e = entries.find(x => x.id === id);
   if (!e) return;
 
@@ -2016,7 +2019,11 @@ async function createSumitDocument(id, sendToEmail) {
         return _c;
       })(),
       ExternalReference: String(e.id),
-      ...(sendToEmail ? { SendByEmail: { EmailAddress: sendToEmail, Original: true, SendAsPaymentRequest: false } } : {}),
+      ...(sendToEmails && sendToEmails.length ? {
+        SendByEmail: { EmailAddress: sendToEmails[0], Original: true, SendAsPaymentRequest: false },
+        AdditionalEmailAddresses: sendToEmails.slice(1),
+      } : {}),
+      ...(emailBody ? { OpeningText: emailBody } : {}),
     },
     Items: [{
       Quantity: 1,
@@ -2744,11 +2751,13 @@ function addEntry(){
   if(client&&!allClients().includes(client)){customClients.push(client);saveMeta();}
   // Auto-send to Sumit if checkbox checked
   const sendToSumit = document.getElementById('f-send-sumit')?.checked !== false;
-  const clientEmail = document.getElementById('f-client-email')?.value.trim() || '';
-  const sendEmail = document.getElementById('f-send-email')?.checked && clientEmail;
-  if (sendToSumit) createSumitDocument(entry.id, sendEmail ? clientEmail : null);
+  const clientEmailRaw = document.getElementById('f-client-email')?.value.trim() || '';
+  const emailBody = document.getElementById('f-email-body')?.value.trim() || '';
+  const sendEmail = document.getElementById('f-send-email')?.checked && clientEmailRaw;
+  const emailList = clientEmailRaw.split(',').map(e=>e.trim()).filter(Boolean);
+  if (sendToSumit) createSumitDocument(entry.id, sendEmail ? emailList : null, emailBody || null);
   pendingFile=null;
-  ['f-desc','f-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-desc','f-notes','f-client-email','f-email-body'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-amount').value='';document.getElementById('f-amount').dataset.raw='';
   document.getElementById('f-vat-exempt').checked=false;document.getElementById('vat-hint').textContent='';
   document.getElementById('f-expected-calc').value='';
