@@ -578,6 +578,7 @@ body.mode-light .toggle-knob{right:auto;left:2px}
       <button class="bulk-btn" onclick="bulkSet('pay_status','שולם')">סמן שולם</button>
       <button class="bulk-btn" onclick="bulkSet('invoice_status','נשלחה חשבונית')">חשבונית הופקה</button>
       <button class="bulk-btn" onclick="bulkSet('receipt_status','יצאה קבלה')">קבלה נשלחה</button>
+      <button class="bulk-btn" onclick="bulkAssignClientOpen()" style="background:var(--surface2);color:var(--fg)">👤 שנה לקוח</button>
       <button class="bulk-btn del" onclick="bulkDel()">🗑 מחק</button>
       <button class="bulk-btn gray" onclick="clearSel()">ביטול</button>
     </div>
@@ -1091,6 +1092,16 @@ body.mode-light .toggle-knob{right:auto;left:2px}
     <div style="display:flex;gap:10px">
       <button onclick="sendReminderEmailFromModal()" style="flex:1;padding:10px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">📧 פתח Gmail</button>
       <button onclick="copyReminderWhatsappFromModal()" style="flex:1;padding:10px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.5);border-radius:8px;color:#25d366;font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">💬 העתק לוואטסאפ</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bulk-client-modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-title">שנה לקוח לנבחרים <button class="modal-close" onclick="document.getElementById('bulk-client-modal').style.display='none'">×</button></div>
+    <div style="padding:16px 0 8px">
+      <input id="bulk-client-search" type="text" placeholder="חיפוש לקוח..." style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-family:'Heebo',sans-serif;font-size:13px;margin-bottom:8px" oninput="renderBulkClientList()"/>
+      <div id="bulk-client-list" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
     </div>
   </div>
 </div>
@@ -2299,6 +2310,30 @@ function updateBulkBar(){
 function toggleSel(id,cb){if(cb.checked)selectedIds.add(id);else selectedIds.delete(id);updateBulkBar();renderTable();}
 function toggleAll(cb){const f=getFiltered();if(cb.checked)f.forEach(e=>selectedIds.add(e.id));else selectedIds.clear();updateBulkBar();renderTable();}
 function clearSel(){selectedIds.clear();updateBulkBar();renderTable();}
+function bulkAssignClientOpen(){
+  document.getElementById('bulk-client-search').value='';
+  renderBulkClientList();
+  document.getElementById('bulk-client-modal').style.display='flex';
+}
+function renderBulkClientList(){
+  const search=document.getElementById('bulk-client-search').value.toLowerCase();
+  const clients=allClients().filter(c=>!search||c.toLowerCase().includes(search));
+  const el=document.getElementById('bulk-client-list');
+  el.innerHTML=clients.map(c=>`<div style="padding:7px 10px;border-radius:5px;cursor:pointer;font-size:13px;background:var(--surface2)" onmouseover="this.style.background='var(--accent-bg)'" onmouseout="this.style.background='var(--surface2)'" onclick="bulkAssignClient('${c.replace(/'/g,"\\'")}')">
+    ${c}
+  </div>`).join('');
+}
+function bulkAssignClient(clientName){
+  selectedIds.forEach(id=>{
+    const idx=entries.findIndex(e=>e.id===id);
+    if(idx>=0){entries[idx].client=clientName;entries[idx].lastModified=Date.now();}
+  });
+  save();
+  selectedIds.clear();
+  document.getElementById('bulk-client-modal').style.display='none';
+  renderAll();
+}
+
 function bulkSet(field,val){selectedIds.forEach(id=>{const idx=entries.findIndex(e=>e.id===id);if(idx>=0)entries[idx][field]=val;});save();selectedIds.clear();renderAll();}
 function bulkDel(){if(!confirm(`למחוק ${selectedIds.size} עסקאות?`))return;entries.forEach(e=>{if(selectedIds.has(e.id)){e.deleted=true;e.lastModified=Date.now();}});save();selectedIds.clear();renderAll();}
 function renderClients(){
