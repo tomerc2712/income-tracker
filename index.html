@@ -2395,9 +2395,9 @@ function renderClients(){
     const total=cEntries.reduce((s,e)=>s+getNet(e),0);
     const paid=cEntries.filter(e=>e.pay_status==='שולם').reduce((s,e)=>s+getNet(e),0);
     const debt=cEntries.filter(e=>e.pay_status==='טרם שולם').reduce((s,e)=>s+getNet(e),0);
-    return`<div class="client-card" onclick="openClientDetail('${c.replace(/'/g,"\\'")}')">
-      <button class="client-del-btn" onclick="event.stopPropagation();deleteClient('${c.replace(/'/g,"\\'")}')">🗑</button>
-      <button class="client-edit-btn" onclick="event.stopPropagation();openClientDetail('${c.replace(/'/g,"\\'")}');setTimeout(()=>renameClient(),100)">✏️</button>
+    return`<div class="client-card" data-cname="${c.replace(/"/g,'&quot;')}" onclick="openClientDetail(this.dataset.cname)">
+      <button class="client-del-btn" data-cname="${c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();deleteClient(this.dataset.cname)">🗑</button>
+      <button class="client-edit-btn" data-cname="${c.replace(/"/g,'&quot;')}" onclick="event.stopPropagation();openClientDetail(this.parentElement.dataset.cname);setTimeout(()=>renameClient(),100)">✏️</button>
       <div class="client-card-name">${c}</div>
       <div class="client-card-stats">
         <div class="client-stat"><div class="client-stat-label">סה"כ</div><div class="client-stat-value blue">${fmt(total)}</div></div>
