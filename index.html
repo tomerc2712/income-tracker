@@ -548,24 +548,6 @@ body.mode-light .toggle-knob{right:auto;left:2px}
         <div id="f-file-tag"></div>
       </div>
       <div class="fg" style="margin-bottom:12px"><label>הערות</label><textarea id="f-notes" placeholder="הערות נוספות..."></textarea></div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-          <input type="checkbox" id="f-send-sumit" checked style="width:15px;height:15px;accent-color:var(--accent)" onchange="document.getElementById('f-send-email-row').style.display=this.checked?'flex':'none'"/>
-          <span>📄 צור מסמך ב-Sumit אוטומטית</span>
-        </label>
-        <div id="f-send-email-row" style="display:none;flex-direction:column;gap:6px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="f-send-email" style="width:15px;height:15px;accent-color:var(--accent)"/>
-            <span>📧 שלח מסמך למייל הלקוח</span>
-          </label>
-          <input type="text" id="f-client-email" placeholder="מיילים מופרדים בפסיק: a@b.com, c@d.com" style="width:100%;padding:5px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif;box-sizing:border-box"/>
-          <textarea id="f-email-body" placeholder="הודעה אישית בגוף המייל (אופציונלי)..." rows="2" style="width:100%;padding:5px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:12px;font-family:Heebo,sans-serif;resize:vertical;box-sizing:border-box"></textarea>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--muted)">
-            <input type="checkbox" id="f-cc-self" checked style="width:13px;height:13px;accent-color:var(--accent)"/>
-            <span>📬 שלח עותק לעצמי (tomerc2712@gmail.com)</span>
-          </label>
-        </div>
-      </div>
       <button class="btn-primary" onclick="addEntry()">הוסף עסקה</button>
     </div>
   </div>
@@ -1114,6 +1096,68 @@ body.mode-light .toggle-knob{right:auto;left:2px}
       <button onclick="sendReminderEmailFromModal()" style="flex:1;padding:10px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">📧 פתח Gmail</button>
       <button onclick="copyReminderWhatsappFromModal()" style="flex:1;padding:10px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.5);border-radius:8px;color:#25d366;font-size:13px;font-family:'Heebo',sans-serif;cursor:pointer">💬 העתק לוואטסאפ</button>
     </div>
+  </div>
+</div>
+
+
+<!-- RECEIPT MODAL -->
+<div class="modal-overlay" id="receipt-issue-modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title">🧾 הפקת קבלה <button class="modal-close" onclick="document.getElementById('receipt-issue-modal').style.display='none'">×</button></div>
+    <div class="form-grid" style="padding:0 0 8px">
+
+      <div class="fg"><label>שם לקוח</label>
+        <input type="text" id="ri-client" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box"/>
+      </div>
+
+      <div class="fg"><label>סכום לפני מע"מ (₪)</label>
+        <input type="number" id="ri-amount" oninput="updateRiTotal()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box"/>
+      </div>
+      <div class="fg"><label style="color:var(--muted);font-size:11px">סה"כ כולל מע"מ 18%</label>
+        <div id="ri-total" style="padding:7px 10px;font-size:15px;font-weight:700;color:var(--accent)">—</div>
+      </div>
+
+      <div class="fg"><label>תאריך תשלום</label>
+        <input type="date" id="ri-date" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box"/>
+      </div>
+
+      <div class="fg"><label>שיטת תשלום</label>
+        <select id="ri-pay-method" onchange="document.getElementById('ri-pay-other').style.display=this.value==='אחר'?'block':'none'" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box">
+          <option value="3">העברה בנקאית</option>
+          <option value="2">צ'ק</option>
+          <option value="1">מזומן</option>
+          <option value="אחר">אחר</option>
+        </select>
+        <input type="text" id="ri-pay-other" placeholder="פרט שיטת תשלום..." style="display:none;margin-top:6px;background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;box-sizing:border-box"/>
+      </div>
+
+      <div class="fg" style="grid-column:1/-1"><label style="color:var(--muted)">פרטי תשלום (אופציונלי)</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <input type="text" id="ri-confirm-num" placeholder="מס׳ אישור" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:12px"/>
+          <input type="text" id="ri-ref-num" placeholder="מס׳ אסמכתא" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:12px"/>
+          <input type="text" id="ri-account" placeholder="חשבון משלם" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:Heebo,sans-serif;font-size:12px"/>
+        </div>
+      </div>
+
+      <div class="fg" style="grid-column:1/-1"><label>הערות</label>
+        <textarea id="ri-notes" rows="2" placeholder="הערות לקבלה..." style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:100%;font-family:Heebo,sans-serif;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div class="fg" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:6px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="ri-send-email" style="accent-color:var(--accent)"/>
+          <span>📧 שלח קבלה במייל</span>
+        </label>
+        <input type="text" id="ri-email" placeholder="מיילים מופרדים בפסיק: a@b.com, c@d.com" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;width:100%;font-family:Heebo,sans-serif;font-size:12px;box-sizing:border-box"/>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--muted)">
+          <input type="checkbox" id="ri-cc-self" checked style="accent-color:var(--accent)"/>
+          <span>📬 שלח עותק לעצמי (tomerc2712@gmail.com)</span>
+        </label>
+        <textarea id="ri-email-body" rows="2" placeholder="הודעה אישית בגוף המייל (אופציונלי)..." style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;width:100%;font-family:Heebo,sans-serif;font-size:12px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+    </div>
+    <button class="btn-primary" onclick="submitReceiptToSumit()" style="width:100%;margin-top:8px">🧾 הפק ושלח קבלה</button>
   </div>
 </div>
 
@@ -1963,10 +2007,7 @@ function renderTable(){
       <td style="white-space:nowrap">
         <button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button>
         <button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button>
-        ${e.sumit_doc_url
-          ? `<button class="btn-act" id="sumit-btn-${e.id}" title="פתח מסמך ב-Sumit" onclick="window.open('${e.sumit_doc_url}','_blank')" style="color:#00c896">✅</button>`
-          : `<button class="btn-act" id="sumit-btn-${e.id}" title="צור מסמך ב-Sumit" onclick="createSumitDocument(${e.id})" style="opacity:.75">📄</button>`
-        }
+        <button class="btn-act" onclick="openReceiptModal(${e.id})" title="הפק קבלה" style="color:#a78bfa">🧾</button>
       </td>
     </tr>`;
   }).join('')+'</tbody>';
@@ -2085,6 +2126,138 @@ async function createSumitDocument(id, sendToEmails, emailBody) {
   } catch (err) {
     if (btn) { btn.textContent = '❌'; btn.disabled = false; btn.title = err.message; }
       alert('שגיאת רשת: ' + err.message);
+  }
+}
+
+// ── RECEIPT ISSUE (SUMIT) ─────────────────────────────────
+let _receiptEntryId = null;
+
+function openReceiptModal(id) {
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  _receiptEntryId = id;
+  document.getElementById('ri-client').value = e.client || e.desc || '';
+  document.getElementById('ri-amount').value = e.amount || '';
+  updateRiTotal();
+  document.getElementById('ri-date').value = e.date || new Date().toISOString().slice(0,10);
+  document.getElementById('ri-pay-method').value = (e.client||'').includes('פורום פילם') ? '2' : '3';
+  document.getElementById('ri-pay-other').style.display = 'none';
+  document.getElementById('ri-confirm-num').value = '';
+  document.getElementById('ri-ref-num').value = '';
+  document.getElementById('ri-account').value = '';
+  document.getElementById('ri-notes').value = '';
+  document.getElementById('ri-email-body').value = '';
+  // auto-fill email from clientMeta
+  const meta = clientMeta[e.client||''] || {};
+  document.getElementById('ri-email').value = meta.email || '';
+  document.getElementById('ri-send-email').checked = !!meta.email;
+  document.getElementById('receipt-issue-modal').style.display = 'flex';
+}
+
+function updateRiTotal() {
+  const amt = parseFloat(document.getElementById('ri-amount').value) || 0;
+  const total = Math.round(amt * 1.18 * 100) / 100;
+  document.getElementById('ri-total').textContent = total ? '₪' + total.toLocaleString('he-IL') : '—';
+}
+
+async function submitReceiptToSumit() {
+  const clientName = document.getElementById('ri-client').value.trim();
+  const amount = parseFloat(document.getElementById('ri-amount').value) || 0;
+  const date = document.getElementById('ri-date').value;
+  const payMethodVal = document.getElementById('ri-pay-method').value;
+  const payMethodOther = document.getElementById('ri-pay-other').value.trim();
+  const confirmNum = document.getElementById('ri-confirm-num').value.trim();
+  const refNum = document.getElementById('ri-ref-num').value.trim();
+  const account = document.getElementById('ri-account').value.trim();
+  const notes = document.getElementById('ri-notes').value.trim();
+  const sendEmail = document.getElementById('ri-send-email').checked;
+  const emailRaw = document.getElementById('ri-email').value.trim();
+  const ccSelf = document.getElementById('ri-cc-self').checked;
+  const emailBody = document.getElementById('ri-email-body').value.trim();
+
+  if (!clientName) { alert('נא למלא שם לקוח'); return; }
+  if (!amount) { alert('נא למלא סכום'); return; }
+
+  const sumitAmount = Math.round(amount * 1.18 * 100) / 100;
+  const payType = payMethodVal === 'אחר' ? 5 : parseInt(payMethodVal);
+
+  // Build payment details
+  const paymentObj = { Amount: sumitAmount, Type: payType };
+  if (confirmNum) paymentObj.Details_General = { ...(paymentObj.Details_General||{}), ConfirmationNumber: confirmNum };
+  if (refNum) paymentObj.Details_General = { ...(paymentObj.Details_General||{}), ReferenceNumber: refNum };
+  if (account) paymentObj.Details_BankTransfer = { AccountNumber: account };
+  if (payMethodVal === 'אחר' && payMethodOther) paymentObj.Details_Other = { Description: payMethodOther };
+
+  // Build email list
+  const emailList = sendEmail ? emailRaw.split(',').map(e=>e.trim()).filter(Boolean) : [];
+  if (ccSelf && !emailList.includes('tomerc2712@gmail.com')) emailList.push('tomerc2712@gmail.com');
+
+  const clientId = getSumitClientId(clientName);
+
+  const payload = {
+    Details: {
+      IsDraft: false,
+      Date: date,
+      Type: 1,
+      Customer: (() => {
+        const c = { SearchMode: 0, Name: clientName };
+        if (clientId) c.CompanyNumber = clientId;
+        return c;
+      })(),
+      ...(notes ? { ClosingText: notes } : {}),
+      ...(emailBody ? { OpeningText: emailBody } : {}),
+      ...(emailList.length ? {
+        SendByEmail: { EmailAddress: emailList[0], Original: true, SendAsPaymentRequest: false },
+        AdditionalEmailAddresses: emailList.slice(1),
+      } : {}),
+    },
+    Items: [{
+      Quantity: 1,
+      UnitPrice: sumitAmount,
+      TotalPrice: sumitAmount,
+      Item: { Name: (entries.find(x=>x.id===_receiptEntryId)?.desc) || clientName },
+    }],
+    Payments: [paymentObj],
+    VATIncluded: true,
+    Credentials: {
+      CompanyID: SUMIT_COMPANY_ID,
+      APIKey: SUMIT_API_KEY,
+      APIPublicKey: SUMIT_PUBLIC_KEY,
+    },
+  };
+
+  const btn = document.querySelector('#receipt-issue-modal .btn-primary');
+  if (btn) { btn.textContent = '⏳ שולח...'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('https://api.sumit.co.il/accounting/documents/create/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data?.Data?.DocumentID) {
+      // Save to entry
+      const idx = entries.findIndex(x=>x.id===_receiptEntryId);
+      if (idx>=0) {
+        entries[idx].sumit_receipt_id = data.Data.DocumentID;
+        entries[idx].sumit_receipt_url = data.Data.PublicURL || '';
+        entries[idx].receipt_status = 'יצאה קבלה';
+        entries[idx].lastModified = Date.now();
+        save();
+      }
+      document.getElementById('receipt-issue-modal').style.display = 'none';
+      renderAll();
+      const _t=document.getElementById('success-toast');
+      if(_t){_t.querySelector('.success-text').textContent='קבלה הופקה בהצלחה ✅';_t.querySelector('.success-sub').textContent=emailList.length?'נשלחה למייל':'';_t.classList.add('show');setTimeout(()=>_t.classList.remove('show'),2500);}
+    } else {
+      const msg = data?.Message || data?.UserErrorMessage || JSON.stringify(data);
+      alert('שגיאה מ-Sumit: ' + msg);
+      if (btn) { btn.textContent = '🧾 הפק ושלח קבלה'; btn.disabled = false; }
+    }
+  } catch(err) {
+    alert('שגיאת רשת: ' + err.message);
+    if (btn) { btn.textContent = '🧾 הפק ושלח קבלה'; btn.disabled = false; }
   }
 }
 
@@ -2757,16 +2930,7 @@ function addEntry(){
   entries.unshift(entry);
   save();
   if(client&&!allClients().includes(client)){customClients.push(client);saveMeta();}
-  // Auto-send to Sumit if checkbox checked
-  const sendToSumit = document.getElementById('f-send-sumit')?.checked !== false;
-  const clientEmailRaw = document.getElementById('f-client-email')?.value.trim() || '';
-  const emailBody = document.getElementById('f-email-body')?.value.trim() || '';
-  const sendEmail = document.getElementById('f-send-email')?.checked && clientEmailRaw;
-  const emailList = clientEmailRaw.split(',').map(e=>e.trim()).filter(Boolean);
-  const ccSelf = document.getElementById('f-cc-self')?.checked;
-  const MY_EMAIL = 'tomerc2712@gmail.com';
-  if (ccSelf && sendEmail && !emailList.includes(MY_EMAIL)) emailList.push(MY_EMAIL);
-  if (sendToSumit) createSumitDocument(entry.id, sendEmail ? emailList : null, emailBody || null);
+
   pendingFile=null;
   ['f-desc','f-notes','f-client-email','f-email-body'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('f-amount').value='';document.getElementById('f-amount').dataset.raw='';
