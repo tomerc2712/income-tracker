@@ -4968,6 +4968,7 @@ async function fetchSumitPdfAndUpload(docId, entryId, entry) {
     });
     const data = await res.json();
     const b64 = data?.Data?.PDF || data?.Data?.Base64 || data?.PDF || data?.Base64;
+    console.log('Sumit getpdf response keys:', JSON.stringify(Object.keys(data||{})), 'Data keys:', JSON.stringify(Object.keys(data?.Data||{})));
     if (!b64) { console.warn('Sumit getpdf: no PDF in response', data); return; }
 
     // Convert base64 → Blob
