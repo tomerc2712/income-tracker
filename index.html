@@ -1913,7 +1913,14 @@ function renderTable(){
       <td>${recBadge(e.id,e.receipt_status)}</td>
       <td>${recCol}</td>
       ${reminderCol}
-      <td style="white-space:nowrap"><button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button><button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-act" onclick="openEdit(${e.id})" title="עריכה">✏️</button>
+        <button class="btn-act" onclick="delEntry(${e.id})" title="מחיקה">🗑️</button>
+        ${e.sumit_doc_url
+          ? `<button class="btn-act" id="sumit-btn-${e.id}" title="פתח מסמך ב-Sumit" onclick="window.open('${e.sumit_doc_url}','_blank')" style="color:#00c896">✅</button>`
+          : `<button class="btn-act" id="sumit-btn-${e.id}" title="צור מסמך ב-Sumit" onclick="createSumitDocument(${e.id})" style="opacity:.75">📄</button>`
+        }
+      </td>
     </tr>`;
   }).join('')+'</tbody>';
   el.innerHTML=head+body;
@@ -1923,6 +1930,96 @@ function renderTable(){
   updateBulkBar();
 }
 function sortBy(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderTable();}
+
+// ── SUMIT API INTEGRATION ─────────────────────────────────
+const SUMIT_COMPANY_ID = 207488990;
+const SUMIT_API_KEY    = '7yY5cw7LL8UacoS5YMu6tVcbxVkbgmuGAZQ6SUS7AHvqqYbVe6';
+
+async function createSumitDocument(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+
+  const btn = document.getElementById('sumit-btn-' + id);
+  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+  // document type: 400 = קבלה, 320 = חשבונית מס
+  const docType = (e.receipt_status === 'יצאה קבלה' || e.pay_status === 'שולם') ? 400 : 320;
+
+  // payment type: 3 = bank transfer, 2 = cheque
+  const isForumFilm = (e.client || '').includes('פורום פילם');
+  const paymentType = isForumFilm ? 2 : 3;
+
+  const amount = e.amount || 0;
+  const vatRate = e.vat_exempt ? 0 : 0.18;
+  const vatIncluded = !e.vat_exempt;
+
+  const payload = {
+    Details: {
+      IsDraft: false,
+      Date: e.date || new Date().toISOString().slice(0,10),
+      Type: docType,
+      Customer: {
+        SearchMode: 0,
+        Name: e.client || e.desc,
+      },
+      Currency: 'ILS',
+      ExternalReference: String(e.id),
+    },
+    Items: [{
+      Quantity: 1,
+      UnitPrice: amount,
+      TotalPrice: amount,
+      Item: { Name: e.desc || e.client || 'שירות' },
+    }],
+    Payments: [{
+      Amount: vatIncluded ? Math.round(amount * (1 + vatRate)) : amount,
+      Type: paymentType,
+    }],
+    VATIncluded: vatIncluded,
+    VATRate: vatRate,
+    Credentials: {
+      CompanyID: SUMIT_COMPANY_ID,
+      APIKey: SUMIT_API_KEY,
+    },
+  };
+
+  try {
+    const res = await fetch('https://api.sumit.co.il/accounting/documents/create/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data && data.Data && data.Data.DocumentID) {
+      const docId  = data.Data.DocumentID;
+      const docUrl = data.Data.PublicURL || data.Data.DocumentURL || '';
+      // save into entry
+      const idx = entries.findIndex(x => x.id === id);
+      if (idx !== -1) {
+        entries[idx].sumit_doc_id  = docId;
+        entries[idx].sumit_doc_url = docUrl;
+        entries[idx].lastModified  = Date.now();
+        save();
+      }
+      if (btn) {
+        btn.textContent = '✅';
+        btn.disabled = false;
+        btn.title = 'מסמך נוצר ב-Sumit';
+        btn.onclick = () => window.open(docUrl, '_blank');
+      }
+      const _t=document.getElementById('success-toast');
+      if(_t){_t.querySelector('.success-text').textContent='מסמך נוצר בהצלחה ב-Sumit ✅';_t.querySelector('.success-sub').textContent='לחץ על ✅ לפתיחת המסמך';_t.classList.add('show');setTimeout(()=>_t.classList.remove('show'),2500);}
+    } else {
+      const errMsg = (data && data.Message) ? data.Message : JSON.stringify(data);
+      if (btn) { btn.textContent = '❌'; btn.disabled = false; btn.title = errMsg; }
+      alert('שגיאה מ-Sumit: ' + errMsg);
+    }
+  } catch (err) {
+    if (btn) { btn.textContent = '❌'; btn.disabled = false; btn.title = err.message; }
+      alert('שגיאת רשת: ' + err.message);
+  }
+}
 
 // ── REMINDER FUNCTIONS ────────────────────────────────────
 function isOverdue(e){
