@@ -1913,7 +1913,7 @@ function renderTable(){
     return`<tr class="${sel}">
       <td class="td-check"><input type="checkbox" ${sel?'checked':''} onchange="toggleSel(${e.id},this)"/></td>
       <td class="td-desc" title="${e.desc}" ondblclick="inlineEdit(${e.id},'desc',this)" style="cursor:text">${e.desc}</td>
-      <td style="font-size:11px;color:var(--muted)">${e.client||'—'}</td>
+      <td style="font-size:11px;color:var(--muted);cursor:text" ondblclick="inlineEditClient(${e.id},this)" title="לחץ פעמיים לעריכת לקוח">${e.client||'—'}</td>
       <td class="td-amount ${(e.amount||0)<0?'neg':''}" ondblclick="inlineEdit(${e.id},'amount',this)" style="cursor:text">${fmt(e.amount)}${e.includes_vat?'<span style="font-size:9px;color:var(--muted)"> +מעמ</span>':''}</td>
       <td style="font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer" onclick="openDatePicker(${e.id},this)">${fmtDate(e.date)} ✎</td>
       <td><span class="badge type">${e.work_type||'—'}</span></td>
@@ -2310,6 +2310,51 @@ function updateBulkBar(){
 function toggleSel(id,cb){if(cb.checked)selectedIds.add(id);else selectedIds.delete(id);updateBulkBar();renderTable();}
 function toggleAll(cb){const f=getFiltered();if(cb.checked)f.forEach(e=>selectedIds.add(e.id));else selectedIds.clear();updateBulkBar();renderTable();}
 function clearSel(){selectedIds.clear();updateBulkBar();renderTable();}
+function inlineEditClient(id, td) {
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  const clients = allClients();
+  const current = e.client||'';
+
+  // Build a small dropdown+input
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;display:inline-block;width:140px';
+
+  const inp = document.createElement('input');
+  inp.value = current;
+  inp.style.cssText = 'width:100%;padding:3px 6px;border-radius:4px;border:1px solid var(--accent);background:var(--surface2);color:var(--fg);font-size:11px;font-family:Heebo,sans-serif';
+
+  const list = document.createElement('div');
+  list.style.cssText = 'position:absolute;top:100%;right:0;left:0;background:var(--surface2);border:1px solid var(--border);border-radius:6px;z-index:999;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+
+  function renderList(q) {
+    const filtered = clients.filter(c=>!q||c.toLowerCase().includes(q.toLowerCase()));
+    list.innerHTML = filtered.map((c,i)=>`<div class="icl" data-i="${i}" style="padding:5px 8px;font-size:11px;cursor:pointer">${c}</div>`).join('');
+    list._c = filtered;
+    list.querySelectorAll('.icl').forEach(d=>{
+      d.onmouseenter=()=>d.style.background='var(--accent-bg)';
+      d.onmouseleave=()=>d.style.background='';
+      d.onmousedown=ev=>{ev.preventDefault();applyClient(list._c[+d.dataset.i]);};
+    });
+  }
+
+  function applyClient(name) {
+    const idx=entries.findIndex(x=>x.id===id);
+    if(idx>=0){entries[idx].client=name;entries[idx].lastModified=Date.now();}
+    save(); renderTable();
+  }
+
+  inp.oninput=()=>renderList(inp.value);
+  inp.onblur=()=>{applyClient(inp.value); wrapper.remove();};
+  inp.onkeydown=ev=>{if(ev.key==='Enter'){inp.blur();}if(ev.key==='Escape'){wrapper.remove();renderTable();}};
+
+  wrapper.appendChild(inp);
+  wrapper.appendChild(list);
+  td.textContent='';
+  td.appendChild(wrapper);
+  renderList('');
+  inp.focus(); inp.select();
+}
+
 function bulkAssignClientOpen(){
   document.getElementById('bulk-client-search').value='';
   renderBulkClientList();
@@ -2319,9 +2364,13 @@ function renderBulkClientList(){
   const search=document.getElementById('bulk-client-search').value.toLowerCase();
   const clients=allClients().filter(c=>!search||c.toLowerCase().includes(search));
   const el=document.getElementById('bulk-client-list');
-  el.innerHTML=clients.map(c=>`<div style="padding:7px 10px;border-radius:5px;cursor:pointer;font-size:13px;background:var(--surface2)" onmouseover="this.style.background='var(--accent-bg)'" onmouseout="this.style.background='var(--surface2)'" onclick="bulkAssignClient('${c.replace(/'/g,"\\'")}')">
-    ${c}
-  </div>`).join('');
+  el.innerHTML=clients.map((c,i)=>`<div class="bcl-item" data-idx="${i}" style="padding:7px 10px;border-radius:5px;cursor:pointer;font-size:13px;background:var(--surface2)">${c}</div>`).join('');
+  el._clients=clients;
+  el.querySelectorAll('.bcl-item').forEach(d=>{
+    d.onmouseenter=()=>d.style.background='var(--accent-bg)';
+    d.onmouseleave=()=>d.style.background='var(--surface2)';
+    d.onclick=()=>bulkAssignClient(el._clients[+d.dataset.idx]);
+  });
 }
 function bulkAssignClient(clientName){
   selectedIds.forEach(id=>{
