@@ -1951,7 +1951,6 @@ async function createSumitDocument(id) {
   const paymentType = isForumFilm ? 2 : 3;
 
   const amount = e.amount || 0;
-  const vatRate = e.vat_exempt ? 0 : 0.18;
   const vatIncluded = !e.vat_exempt;
 
   const payload = {
@@ -1972,11 +1971,10 @@ async function createSumitDocument(id) {
       Item: { Name: e.desc || e.client || 'שירות' },
     }],
     Payments: [{
-      Amount: vatIncluded ? Math.round(amount * (1 + vatRate)) : amount,
+      Amount: amount,
       Type: paymentType,
     }],
     VATIncluded: vatIncluded,
-    VATRate: vatRate,
     Credentials: {
       CompanyID: SUMIT_COMPANY_ID,
       APIKey: SUMIT_API_KEY,
